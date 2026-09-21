@@ -11,7 +11,8 @@ import {
   UserRole,
 } from '@savote/shared-types';
 import { UserinfoResponse } from 'openid-client';
-import { normalizeSub } from '../utils/auth-utils';
+import { resolveAdminSubject } from '../utils/auth-utils';
+import { OidcService } from './oidc.service';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -25,6 +26,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private oidcService: OidcService,
   ) {
     const privateKeyPath = path.resolve(
       process.cwd(),
@@ -86,30 +88,38 @@ export class AuthService {
   }
 
   /**
-   * Process Admin OIDC login (Synology)
+   * Process Admin OIDC login (Keycloak)
    */
   async handleAdminOIDCLogin(
     userinfo: UserinfoResponse,
     ipAddress: string,
     userAgent: string,
   ): Promise<LoginResponse> {
-    const rawSub = userinfo.sub;
-    if (!rawSub) throw new UnauthorizedException('Synology Sub not found');
+    const usernameClaim = await this.oidcService.getAdminUsernameClaim();
+    const claimedSub = resolveAdminSubject(userinfo, usernameClaim);
 
-    // Normalize sub (e.g. "NCUESA\S123" -> "S123")
-    const synologySub = normalizeSub(rawSub);
+    if (!claimedSub) {
+      throw new UnauthorizedException(
+        `Admin identifier not found in OIDC claims (expected "${usernameClaim}")`,
+      );
+    }
 
-    // 1. Check local permission table
-    const permission = await this.prisma.adminPermission.findUnique({
-      where: { synologySub },
-    });
+    // 1. Check local permission table.
+    //    Keycloak lowercases usernames by default, so the stored identifier is
+    //    matched case-insensitively to keep existing grants valid.
+    const permission = await this.findAdminPermission(claimedSub);
 
     if (!permission) {
-      this.logger.warn(`Unauthorized admin login attempt for sub: ${synologySub} (raw: ${rawSub})`);
+      this.logger.warn(
+        `Unauthorized admin login attempt for ${usernameClaim}: ${claimedSub} (sub: ${userinfo.sub})`,
+      );
       throw new UnauthorizedException('You do not have administrative access to this system.');
     }
 
-    // 2. Sync with User table
+    // 2. Sync with User table.
+    //    The permission record is the canonical spelling: deriving the hash from
+    //    it keeps one User row per admin regardless of how the IdP cases the claim.
+    const synologySub = permission.synologySub;
     const studentIdHash = crypto.createHash('sha256').update(synologySub).digest('hex');
 
     //const userClass = (userinfo['class'] || userinfo['ou'] || 'UNKNOWN') as string;
@@ -143,6 +153,22 @@ export class AuthService {
       isNewUser,
       user: this.mapToUserProfile(admin, ipAddress),
     };
+  }
+
+  /**
+   * Looks up an admin grant, falling back to a case-insensitive match so that an
+   * IdP which normalizes usernames (Keycloak lowercases them by default) still
+   * resolves to a permission entered as e.g. "M1154007".
+   */
+  private async findAdminPermission(sub: string) {
+    const exact = await this.prisma.adminPermission.findUnique({
+      where: { synologySub: sub },
+    });
+    if (exact) return exact;
+
+    return this.prisma.adminPermission.findFirst({
+      where: { synologySub: { equals: sub, mode: 'insensitive' } },
+    });
   }
 
   private mapToUserProfile(user: any, ip: string) {

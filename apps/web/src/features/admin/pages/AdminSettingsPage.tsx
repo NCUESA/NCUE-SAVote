@@ -19,6 +19,7 @@ export function AdminSettingsPage() {
     ADMIN_OIDC_ISSUER: "",
     ADMIN_OIDC_CLIENT_ID: "",
     ADMIN_OIDC_CLIENT_SECRET: "",
+    ADMIN_OIDC_USERNAME_CLAIM: "",
   });
 
   const { data: settings, isLoading } = useQuery({
@@ -171,10 +172,11 @@ export function AdminSettingsPage() {
             </div>
             <div>
               <h2 className="text-2xl font-bold text-[var(--color-on-surface)] tracking-tight">
-                管理員 (Synology) OIDC 配置
+                管理員 (Keycloak) OIDC 配置
               </h2>
               <p className="text-sm font-medium text-[var(--color-on-surface-variant)] opacity-80 mt-1">
-                用於學生會幹部登入後台的單一登入設定。
+                用於學生會幹部登入後台的單一登入設定。Issuer 格式為
+                <code className="mx-1 font-mono">https://&lt;keycloak&gt;/realms/&lt;realm&gt;</code>。
               </p>
             </div>
           </div>
@@ -222,7 +224,21 @@ export function AdminSettingsPage() {
                     handleChange("ADMIN_OIDC_CLIENT_SECRET", e.target.value)
                 }
                 />
+                <TextField
+                label="帳號識別 Claim"
+                placeholder="preferred_username"
+                value={formData.ADMIN_OIDC_USERNAME_CLAIM}
+                onChange={(e) =>
+                    handleChange("ADMIN_OIDC_USERNAME_CLAIM", e.target.value)
+                }
+                />
             </div>
+
+            <p className="text-xs text-[var(--color-on-surface-variant)] opacity-70 leading-relaxed px-1">
+                Keycloak 的 <code className="font-mono">sub</code> 是隨機 UUID，無法用來比對權限名單。
+                系統預設改讀 <code className="font-mono">preferred_username</code>（即 Keycloak 帳號名稱），
+                留白即採用此預設值。
+            </p>
           </div>
         </Card>
 

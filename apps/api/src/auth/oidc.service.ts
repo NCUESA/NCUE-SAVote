@@ -39,6 +39,18 @@ export class OidcService implements OnModuleInit {
     return this.configService.get<string>(key) || '';
   }
 
+  /**
+   * Claim that carries the admin's account identifier.
+   *
+   * Keycloak's `sub` is an opaque UUID, so admin authorization is matched on
+   * `preferred_username` by default. Override per-deployment when the realm
+   * exposes the student ID under a different claim.
+   */
+  async getAdminUsernameClaim(): Promise<string> {
+    const claim = await this.getConfigValue('ADMIN_OIDC_USERNAME_CLAIM');
+    return claim?.trim() || 'preferred_username';
+  }
+
   private getCallbackUrl(type: OidcType): string {
     const origin = process.env.CORS_ORIGIN || 'https://sa-election.ncue.edu.tw';
     return type === OidcType.VOTER 

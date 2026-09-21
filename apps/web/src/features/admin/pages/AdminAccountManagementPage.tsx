@@ -110,8 +110,8 @@ export function AdminAccountManagementPage() {
                     />
                     
                     <TextField
-                        label="OIDC Sub (UID)"
-                        placeholder="例如：S1234567"
+                        label="Keycloak 帳號 (Username)"
+                        placeholder="例如：M1154007"
                         value={newAdmin.synologySub}
                         onChange={(e) => setNewAdmin({ ...newAdmin, synologySub: e.target.value })}
                         required
@@ -143,7 +143,7 @@ export function AdminAccountManagementPage() {
 
                 <div className="mt-6 md:mt-8 flex gap-3 items-start text-[10px] md:text-[11px] text-[var(--color-on-surface-variant)] opacity-60 bg-[var(--color-surface-container-highest)]/50 p-4 rounded-xl border border-[var(--color-outline-variant)]/20">
                     <ShieldAlert className="w-4 h-4 shrink-0 text-amber-500" />
-                    <p>Sub 為 Synology 提供之唯一識別碼，若輸入錯誤將導致該員無法登入管理介面。</p>
+                    <p>請填入該員在 Keycloak 的帳號名稱 (Username)，不是 Keycloak 後台顯示的 UUID；若輸入錯誤將導致該員無法登入管理介面。</p>
                 </div>
             </Card>
         </div>

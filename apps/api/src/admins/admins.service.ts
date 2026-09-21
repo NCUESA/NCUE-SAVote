@@ -19,12 +19,14 @@ export class AdminsService {
     // Normalize sub (e.g. "NCUESA\S123" -> "S123")
     const synologySub = normalizeSub(data.synologySub);
 
-    const existing = await this.prisma.adminPermission.findUnique({
-      where: { synologySub },
+    // Matched case-insensitively: Keycloak lowercases usernames, so
+    // "M1154007" and "m1154007" must not become two competing grants.
+    const existing = await this.prisma.adminPermission.findFirst({
+      where: { synologySub: { equals: synologySub, mode: 'insensitive' } },
     });
 
     if (existing) {
-      throw new ConflictException('Admin with this Synology ID already exists');
+      throw new ConflictException('Admin with this account ID already exists');
     }
 
     return this.prisma.adminPermission.create({
@@ -91,6 +93,7 @@ export class AdminsService {
       'ADMIN_OIDC_ISSUER',
       'ADMIN_OIDC_CLIENT_ID',
       'ADMIN_OIDC_CLIENT_SECRET',
+      'ADMIN_OIDC_USERNAME_CLAIM',
     ];
 
     const settings: Record<string, string> = {};
@@ -119,6 +122,7 @@ export class AdminsService {
       'ADMIN_OIDC_ISSUER',
       'ADMIN_OIDC_CLIENT_ID',
       'ADMIN_OIDC_CLIENT_SECRET',
+      'ADMIN_OIDC_USERNAME_CLAIM',
     ];
 
     for (const key of validKeys) {
