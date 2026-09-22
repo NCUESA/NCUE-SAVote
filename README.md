@@ -20,7 +20,7 @@ SAVote 是一個採用 **Zero-Knowledge Proofs (Groth16)** 技術建構的次世
 
 ```bash
 # Clone 專案
-git clone https://github.com/GDG-on-campus-NCUE/SAVote.git
+git clone https://github.com/NCUESA/SAVote.git
 cd SAVote
 
 # 設定環境變數
