@@ -1,319 +1,61 @@
-/* ====== 頁面載入動畫 ====== */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+/* ===========================================================================
+   動畫
+   ---------------------------------------------------------------------------
+   原本這個檔案有 319 行、24 個 class，其中 23 個在整個程式碼庫裡找不到任何
+   使用處（呼吸光暈、粒子上升、掃描線、網格移動、發光邊框…），卻帶著 11 個
+   `infinite` 動畫一起被打包進每一次載入。
 
-@keyframes bounceIn {
-  0% {
-    transform: scale(0) rotate(-180deg);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.1) rotate(10deg);
-  }
-  100% {
-    transform: scale(1) rotate(0deg);
-    opacity: 1;
-  }
-}
+   另外它也定義了 `.glass`，與 index.css 的 Liquid Glass 材質層同名衝突。
+   玻璃材質現在統一由 index.css 負責。
 
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
+   這裡只保留實際用得到的兩個，而且都補上 prefers-reduced-motion 的處理。
+   =========================================================================== */
 
-.dot-float-1 {
-  animation: float 3s ease-in-out infinite;
-}
-
-.dot-float-2 {
-  animation: float 3s ease-in-out infinite 0.2s;
-}
-
-.dot-float-3 {
-  animation: float 3s ease-in-out infinite 0.4s;
-}
-
-.dot-float-4 {
-  animation: float 3s ease-in-out infinite 0.6s;
-}
-
-/* ====== 光條掃描動畫 ====== */
-@keyframes scanLine {
-  0% {
-    background-position: -200% 50%;
-  }
-  100% {
-    background-position: 200% 50%;
-  }
-}
-
-.scan-line {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(66, 133, 244, 0.8) 25%,
-    rgba(234, 67, 53, 0.8) 40%,
-    rgba(251, 188, 4, 0.8) 55%,
-    rgba(52, 168, 83, 0.8) 70%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: scanLine 3s linear infinite;
-}
-
-/* ====== 背景光暈呼吸 ====== */
-@keyframes breathe {
-  0%,
-  100% {
-    transform: scale(1) translate(0, 0);
-    opacity: 0.3;
-  }
-  50% {
-    transform: scale(1.2) translate(20px, -20px);
-    opacity: 0.6;
-  }
-}
-
-.glow-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
-  pointer-events: none;
-}
-
-.glow-blue {
-  background: rgba(66, 133, 244, 0.3);
-  animation: breathe 8s ease-in-out infinite;
-}
-
-.glow-green {
-  background: rgba(52, 168, 83, 0.3);
-  animation: breathe 8s ease-in-out infinite 2s;
-}
-
-.glow-purple {
-  background: rgba(156, 39, 176, 0.3);
-  animation: breathe 8s ease-in-out infinite 4s;
-}
-
-/* ====== 粒子上升動畫 ====== */
-@keyframes particleRise {
-  0% {
-    transform: translateY(0) translateX(0) rotate(0deg);
-    opacity: 0;
-  }
-  10% {
-    opacity: 0.5;
-  }
-  90% {
-    opacity: 0.5;
-  }
-  100% {
-    transform: translateY(-100vh) translateX(50px) rotate(360deg);
-    opacity: 0;
-  }
-}
-
-.particle {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-/* ====== 按鈕動畫 ====== */
-@keyframes ripple {
-  0% {
-    transform: scale(0);
-    opacity: 0.6;
-  }
-  100% {
-    transform: scale(4);
-    opacity: 0;
-  }
-}
-
-.button-ripple {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.6);
-  animation: ripple 0.6s ease-out;
-}
-
-/* ====== 圖示動畫 ====== */
-@keyframes rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes wiggle {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(-10deg);
-  }
-  75% {
-    transform: rotate(10deg);
-  }
-}
-
-.icon-rotate:hover svg {
-  animation: rotate 0.6s ease-in-out;
-}
-
-.icon-wiggle:hover svg {
-  animation: wiggle 0.5s ease-in-out;
-}
-
-/* ====== Focus 光環脈動 ====== */
-@keyframes focusPulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 4px rgba(66, 133, 244, 0.1), 0 0 20px rgba(66, 133, 244, 0.2);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(66, 133, 244, 0.2), 0 0 30px rgba(66, 133, 244, 0.4);
-  }
-}
-
-/* ====== Skeleton 流光 ====== */
+/* 骨架屏流光。原本的漸層是白色系，在淺色模式下幾乎看不見；
+   改用 currentColor 讓它在深淺兩個主題都成立。 */
 @keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+/* 放在 components 層：未分層的 border-radius 會蓋掉 rounded-full 等工具類 */
+@layer components {
+  .skeleton {
+    background-color: var(--md-sys-color-surface-container-high);
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+    border-radius: 0.75rem;
   }
 }
 
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.15) 50%,
-    rgba(255, 255, 255, 0.05) 100%
-  );
-  background-size: 1000px 100%;
-  animation: shimmer 2s infinite;
+/* 不支援 color-mix 的瀏覽器至少看得到底色，只是沒有流光 */
+@supports not (background-image: linear-gradient(90deg, color-mix(in srgb, red 8%, transparent), transparent)) {
+  .skeleton { background-image: none; }
 }
 
-/* ====== 成功動畫 ====== */
-@keyframes successPop {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.success-icon {
-  animation: successPop 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-/* ====== 載入動畫 ====== */
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .spinner {
   animation: spin 1s linear infinite;
 }
 
-/* ====== 背景網格移動 ====== */
-@keyframes gridMove {
-  0% {
-    background-position: 0 0;
+/* 使用者在系統要求減少動態效果時，流光與旋轉都停下來。
+   index.css 另有一條全域規則，這裡再明確處理一次：
+   骨架屏停止流光但保留底色（仍然看得出「這裡正在載入」）。 */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background-image: none;
   }
-  100% {
-    background-position: 50px 50px;
+  .spinner {
+    animation: none;
   }
-}
-
-.grid-background {
-  background-image: linear-gradient(rgba(66, 133, 244, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(66, 133, 244, 0.1) 1px, transparent 1px);
-  background-size: 50px 50px;
-  animation: gridMove 20s linear infinite;
-}
-
-/* ====== Glassmorphism 工具類 ====== */
-.glass {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.glass-strong {
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(30px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.glass-subtle {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(10px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* ====== 發光效果 ====== */
-.glow-blue-border {
-  box-shadow: 0 0 15px rgba(66, 133, 244, 0.3), inset 0 0 15px rgba(66, 133, 244, 0.1);
-}
-
-.glow-blue-strong {
-  box-shadow: 0 0 30px rgba(66, 133, 244, 0.6), 0 0 60px rgba(66, 133, 244, 0.3);
-}
-
-.glow-green-border {
-  box-shadow: 0 0 15px rgba(52, 168, 83, 0.3), inset 0 0 15px rgba(52, 168, 83, 0.1);
-}
-
-/* ====== 序列淡入 ====== */
-.stagger-fade-in > * {
-  animation: fadeInUp 0.6s ease-out backwards;
-}
-
-.stagger-fade-in > *:nth-child(1) {
-  animation-delay: 0s;
-}
-.stagger-fade-in > *:nth-child(2) {
-  animation-delay: 0.1s;
-}
-.stagger-fade-in > *:nth-child(3) {
-  animation-delay: 0.2s;
-}
-.stagger-fade-in > *:nth-child(4) {
-  animation-delay: 0.3s;
-}
-.stagger-fade-in > *:nth-child(5) {
-  animation-delay: 0.4s;
 }

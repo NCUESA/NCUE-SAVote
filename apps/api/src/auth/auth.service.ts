@@ -36,6 +36,35 @@ export class AuthService {
   }
 
   /**
+   * Session 資料表只存 token 的 SHA-256 雜湊，不存 token 本身。
+   *
+   * ──────────────────────────────────────────────────────────────────────────
+   * 原本 accessToken 與 refreshToken 都是明文存進 sessions 資料表。
+   * 任何能讀到那張表的人（資料庫備份、SQL injection、維運人員、
+   * 先前暴露在公開 IP 上的 5432 埠）就等於拿到全體使用者的有效憑證，
+   * 可以直接冒用任何帳號，包含超級管理員。
+   *
+   * token 本身是 RS256 簽章的 JWT，驗證靠公鑰而不是靠資料庫比對，
+   * 所以資料庫這一份的唯一用途是「確認這張 refresh token 還是最新的那張」
+   * —— 用雜湊完全足夠。
+   *
+   * 不需要加鹽：token 本身就是高熵的隨機值（含 UUID jti 與簽章），
+   * 不存在字典攻擊的空間。
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  /** 定時安全比較，避免從比對耗時推斷雜湊值 */
+  private tokenMatches(candidate: string, stored: string): boolean {
+    const a = Buffer.from(this.hashToken(candidate), 'utf8');
+    const b = Buffer.from(stored, 'utf8');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  }
+
+  /**
    * Process Voter OIDC login
    */
   async handleVoterLogin(
@@ -196,7 +225,20 @@ export class AuthService {
         include: { user: true },
       });
 
-      if (!session || session.revoked || session.expiresAt < new Date() || session.refreshToken !== refreshToken) {
+      if (!session || session.revoked || session.expiresAt < new Date()) {
+        throw new UnauthorizedException('Invalid or expired session');
+      }
+
+      // 相容處理：這次改版之前建立的 session 存的是明文 token。
+      // 若直接只比對雜湊，所有既有登入都會在下次更新時被登出。
+      // 這裡允許明文比對一次，並在下方立刻改寫成雜湊，使用者無感。
+      //
+      // TODO：所有 session 的 7 天效期過完之後（約 2026-10-16 起），
+      //       把這段 legacy 分支連同註解一起刪掉。
+      const matchesHashed = this.tokenMatches(refreshToken, session.refreshToken);
+      const matchesLegacyPlaintext = session.refreshToken === refreshToken;
+
+      if (!matchesHashed && !matchesLegacyPlaintext) {
         throw new UnauthorizedException('Invalid or expired session');
       }
 
@@ -211,8 +253,8 @@ export class AuthService {
         where: { jti: session.jti },
         data: {
           jti: newJti,
-          accessToken,
-          refreshToken: newRefreshToken,
+          accessToken: this.hashToken(accessToken),
+          refreshToken: this.hashToken(newRefreshToken),
           expiresAt,
           lastActivityAt: new Date(),
           ipAddress,
@@ -255,7 +297,17 @@ export class AuthService {
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     await this.prisma.session.create({
-      data: { userId: user.id, jti, accessToken, refreshToken, expiresAt, deviceInfo, ipAddress },
+      data: {
+        userId: user.id,
+        jti,
+        // 只存雜湊。欄位型別不變（Text），所以不需要任何 schema 變更 ——
+        // 這點對正在運作中的資料庫很重要。
+        accessToken: this.hashToken(accessToken),
+        refreshToken: this.hashToken(refreshToken),
+        expiresAt,
+        deviceInfo,
+        ipAddress,
+      },
     });
 
     return { accessToken, refreshToken };

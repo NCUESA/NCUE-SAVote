@@ -237,12 +237,20 @@ model Vote {
   encryptKey String? @db.Text
 
   // ZK Proof Data
-  //nullifierHash String   @db.VarChar(100) // Prevents double voting (unique per election)
+  //
+  // nullifier = Poseidon(secret, electionId)，由電路公開輸出。
+  // 同一位選民在同一場選舉永遠得到同一個值，所以資料庫層的唯一約束
+  // 就足以擋下重複投票 —— 而且不需要知道是誰。
+  //
+  // 可為空：這個欄位是在電路升級時加入的，之前的選票沒有 nullifier。
+  // Postgres 的唯一索引視每個 NULL 為相異值，所以既有資料不會衝突。
+  nullifier     String? @db.VarChar(100)
   proof         Json? // The Groth16 proof object
   publicSignals Json? // Public inputs
 
   createdAt DateTime @default(now())
 
+  @@unique([electionId, nullifier])
   @@index([electionId])
   @@map("votes")
 }

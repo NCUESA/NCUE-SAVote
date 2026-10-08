@@ -8,7 +8,19 @@ dist
 *.log
 .env
 .env.*
+# 原本只有上面兩行，但 .dockerignore 的樣式是相對於 context 根目錄比對，
+# 所以 `.env.*` 不會匹配到 apps/web/.env.local 之類的巢狀檔案。
+# 那種檔案一旦被 COPY 進去，Vite 會在建置時讀到，正式站的 API 位址就被改掉了。
+**/.env
+**/.env.*
+!**/.env.example
 ! .env.example
+
+# 資料庫備份含全部選票，絕不可進映像檔
+backups
+**/backups
+*.sql
+*.sql.gz
 build
 out
 .cache

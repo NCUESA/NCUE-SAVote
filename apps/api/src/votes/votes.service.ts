@@ -2,18 +2,12 @@ import {
   Injectable,
   BadRequestException,
   ConflictException,
-  NotFoundException,
-  ForbiddenException,
-  Logger
+  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitVoteDto } from './dto/submit-vote.dto';
-//import { verifyVoteProof } from '@savote/crypto-lib';
-import { bigIntToUuid } from '../utils/zk-utils';
-import { randomBytes } from 'crypto';
-import * as CryptoJS from 'crypto-js';
-import { ElectionStatus } from '@prisma/client'; // 1. 確保有匯入 Enum
-import { ExceptionsHandler } from '@nestjs/core/exceptions/exceptions-handler';
+import { electionIdToField, voteHashOf } from '../utils/zk-utils';
 
 // @ts-ignore
 import * as snarkjs from 'snarkjs';
@@ -25,77 +19,138 @@ export class VotesService {
   constructor(private prisma: PrismaService) { }
   private readonly logger = new Logger(VotesService.name);
 
+  /**
+   * 送出一張選票。
+   *
+   * ────────────────────────────────────────────────────────────────────────
+   * 原本這個方法最外層包著一個 catch，而且不論發生什麼錯誤都回傳
+   *   return { status: 'success', message: 'Vote submitted successfully' };
+   *
+   * 註解寫的理由是「防 Timing Attack，回傳成功假象」。但它實際造成的是：
+   *
+   *   - 資料庫寫入失敗（連線中斷、交易衝突）→ 選民看到「投票成功」，
+   *     選票根本沒有存進去，而且投票資格也沒有被核銷。
+   *     在選舉裡這等同於無聲地銷毀選票。
+   *   - ZK 驗證失敗、重複投票、找不到 commitment → 一律顯示成功，
+   *     選民完全無從得知自己的票沒算到。
+   *
+   * 防 timing attack 的正確做法是讓各種失敗路徑的「耗時」一致，
+   * 而不是讓它們的「結果」一致。這裡改為如實回報錯誤，
+   * 並對所有驗證失敗路徑統一延遲，避免從回應時間反推失敗原因。
+   * ────────────────────────────────────────────────────────────────────────
+   */
   async submitVote(dto: SubmitVoteDto) {
+    // 公開訊號順序由電路決定（packages/circuits/src/vote.circom）：
+    //   [0] commitment  [1] nullifier  [2] electionId  [3] voteHash
+    const signals = dto.publicSignals;
+    if (!Array.isArray(signals) || signals.length !== 4) {
+      throw new BadRequestException('MALFORMED_PUBLIC_SIGNALS');
+    }
+
+    // 每個公開訊號都是 BN254 純量體中的元素，一定是十進位數字字串
+    if (!signals.every((x) => typeof x === 'string' && /^[0-9]{1,78}$/.test(x))) {
+      throw new BadRequestException('MALFORMED_PUBLIC_SIGNALS');
+    }
+
+    const [commitment, nullifier, signalElectionId, signalVoteHash] = signals;
+
+    // ── 綁定檢查：在跑昂貴的 ZK 驗證之前先擋 ──────────────────────────
+    // 證明必須是「為這一場選舉」產生的。否則同一份證明可以被拿到
+    // 另一場也登記了同一個 commitment 的選舉重放。
+    let expectedElectionId: string;
     try {
-      // 假設 publicSignals 的第一個元素就是 commitment
-      const commitment = dto.publicSignals[0];
-      this.logger.debug(`[ZK-DEBUG] Toll Request: Election=${dto.electionId}`);
-      this.logger.debug(`[ZK-DEBUG] Commitment: ${commitment}`);
+      expectedElectionId = electionIdToField(dto.electionId);
+    } catch {
+      throw new BadRequestException('INVALID_ELECTION_ID');
+    }
+    if (signalElectionId !== expectedElectionId) {
+      await this.equalizeTiming();
+      throw new BadRequestException('ELECTION_MISMATCH');
+    }
 
-      if (!commitment) {
-        throw new BadRequestException('Missing commitment in publicSignals');
-      }
+    // 證明必須是「為這一張選票」產生的。否則攔截到證明的人可以把
+    // voteContent 換成別的候選人，證明照樣通過。
+    if (signalVoteHash !== voteHashOf(dto.voteContent)) {
+      await this.equalizeTiming();
+      throw new BadRequestException('BALLOT_MISMATCH');
+    }
 
-      // 2. Proof ZK
-      const isValidProof = await this.verifyZk(dto.proof, dto.publicSignals);
-      if (!isValidProof) {
-        this.logger.error(` ZK Verfiy Error in Commitment: ${commitment}`);
-        throw new BadRequestException('ZK_VERIFICATION_FAILED'); // 暫時改為報錯
-        // this.logger.warn(`Invalid ZK proof received for commitment ${commitment}`);
-        // // 為了防 Timing Attack，我們一樣回傳成功假象，但實際上不存檔
-        // return { status: 'success', message: 'Vote submitted successfully' };
-      }
+    const isValidProof = await this.verifyZk(dto.proof, signals);
+    if (!isValidProof) {
+      // 刻意不記錄 commitment 本身：它是可以反查到選民的識別碼
+      this.logger.warn(`ZK verification failed for election ${dto.electionId}`);
+      await this.equalizeTiming();
+      throw new BadRequestException('ZK_VERIFICATION_FAILED');
+    }
 
-      // 3. 用 commitment 找 UserVoteKey (我們不知道他是哪個學生)
-      // 注意：這需要你在 Prisma schema 的 UserVoteKey 裡面，把 commitment 設為 @unique 或是加上 Index
-      const voteKey = await this.prisma.userVoteKey.findFirst({
-        where: {
-          electionId: dto.electionId,
-          commitment: commitment,
-        },
-      });
+    const voteKey = await this.prisma.userVoteKey.findFirst({
+      where: { electionId: dto.electionId, commitment },
+      select: { id: true, hasVoted: true },
+    });
 
-      if (!voteKey) {
-        const existingKeys = await this.prisma.userVoteKey.findMany({
-          where: { electionId: dto.electionId }
-        });
-        this.logger.warn(`No Correspond Commitment!`);
-        this.logger.warn(`Exist Keys: ${existingKeys.map(k => k.commitment).join(', ')}`);
-        this.logger.warn(`Commitment ${commitment} not found or already voted.`);
-        // Debug
-        throw new BadRequestException('COMMITMENT_NOT_FOUND_IN_DB');
-        //return { status: 'success', message: 'Vote submitted successfully' }; // Fake msg
-      }
-      if (voteKey.hasVoted) {
-        throw new BadRequestException('ALREADY_VOTED');
-      }
+    if (!voteKey) {
+      // 原本這裡會把該場選舉「所有」的 commitment 印進日誌：
+      //   existingKeys.map(k => k.commitment).join(', ')
+      // commitment 可以對應回選民，等於把整份對照表寫進日誌檔。
+      this.logger.warn(`No matching vote key for election ${dto.electionId}`);
+      await this.equalizeTiming();
+      throw new BadRequestException('COMMITMENT_NOT_FOUND');
+    }
 
-      // 4. 寫入資料庫 (標記已投票 + 存入選票)
-      await this.prisma.$transaction([
-        // A. 沒收這把鑰匙
-        this.prisma.userVoteKey.update({
-          where: { id: voteKey.id },
+    if (voteKey.hasVoted) {
+      await this.equalizeTiming();
+      throw new ConflictException('ALREADY_VOTED');
+    }
+
+    // 核銷投票資格與寫入選票必須是同一個交易。
+    // updateMany + count 檢查可以在資料庫層擋下併發的重複投票：
+    // 兩個請求同時進來時，只有一個能把 hasVoted 從 false 改成 true。
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const claimed = await tx.userVoteKey.updateMany({
+          where: { id: voteKey.id, hasVoted: false },
           data: { hasVoted: true, votedAt: new Date() },
-        }),
-        // B. 存入選票 (這裡面絕對沒有 studentId 或 commitment)
-        this.prisma.vote.create({
+        });
+
+        if (claimed.count === 0) {
+          // 另一個併發請求搶先核銷了同一把鑰匙
+          throw new ConflictException('ALREADY_VOTED');
+        }
+
+        await tx.vote.create({
           data: {
             electionId: dto.electionId,
             voteContent: dto.voteContent,
             encryptKey: dto.encryptKey,
-            proof: dto.proof as any, // 可選：如果你未來想做公開驗證，可以存 proof
+            // (electionId, nullifier) 有唯一約束：就算 hasVoted 的檢查
+            // 因故被繞過，資料庫層也會擋下第二張票
+            nullifier,
+            proof: dto.proof as any,
           },
-        }),
-      ]);
-
-      return { status: 'success', message: 'Vote submitted successfully' };
+        });
+      });
     } catch (error) {
-      const err = error as any;
-      const errorMessage = err?.response?.data?.message || err?.message || "unknown error";
-      this.logger.error(`Error: ${errorMessage}`);
-      // 統一回傳成功假象
-      return { status: 'success', message: 'Vote submitted successfully' };
+      if (error instanceof ConflictException) throw error;
+      // Prisma P2002 = 唯一約束衝突 → 這個 nullifier 已經投過票了
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new ConflictException('ALREADY_VOTED');
+      }
+      // 交易失敗時 hasVoted 會跟著回滾，選民可以安全地重試
+      const message = error instanceof Error ? error.message : 'unknown error';
+      this.logger.error(`Vote transaction failed for election ${dto.electionId}: ${message}`);
+      throw new InternalServerErrorException('VOTE_NOT_RECORDED');
     }
+
+    return { status: 'success', message: 'Vote submitted successfully' };
+  }
+
+  /**
+   * 讓各種驗證失敗路徑的回應時間趨於一致。
+   * 真正的目的是不要讓攻擊者從「失敗得多快」推斷出失敗原因
+   * （例如 commitment 不存在會比 ZK 驗證失敗快很多）。
+   */
+  private async equalizeTiming() {
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
   // =============================================

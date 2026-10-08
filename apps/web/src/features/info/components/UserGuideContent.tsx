@@ -1,86 +1,63 @@
-import { UserCircle2, Lock, Fingerprint, Database } from 'lucide-react';
+import { UserCircle2, Lock, Fingerprint, Send, Smartphone } from 'lucide-react';
+import { IconTile } from '../../../components/ui/IconTile';
+import { Notice } from '../../../components/ui/Notice';
+
+interface GuideStep {
+  title: string;
+  desc: string;
+  icon: React.ElementType;
+}
+
+/**
+ * 給選民看的流程說明。
+ *
+ * 文案刻意只描述系統實際做到的事：
+ * 原本寫的是「分散式存證」「不可竄改性與公開可稽核性」「絕對匿名與抗關聯性」，
+ * 但本系統並沒有分散式帳本（選票就是資料庫的一列），也沒有公開可稽核的機制。
+ * 在選舉系統裡對選民誇大安全保證，比介面醜還嚴重。
+ */
+const STEPS: GuideStep[] = [
+  {
+    title: '以校園單一簽入確認投票資格',
+    desc: '系統透過彰師單一簽入（SSO）確認您是否在本場選舉的選舉人名單中。您的校園密碼全程由學校的登入系統處理，本系統不會經手也不會儲存。',
+    icon: UserCircle2,
+  },
+  {
+    title: '在您的裝置上產生投票金鑰',
+    desc: '投票金鑰只在您的瀏覽器裡產生並保存，不會傳送到伺服器。送出選票時，系統以零知識證明向伺服器證明「您持有一把合法的投票金鑰」，而不需要出示金鑰本身。',
+    icon: Fingerprint,
+  },
+  {
+    title: '選票在送出前先於裝置上加密',
+    desc: '您圈選的內容會先用本場選舉的公開金鑰加密，再送出。伺服器在開票前無法讀取選票內容；投票資格同時被核銷，同一場選舉無法重複投票。',
+    icon: Send,
+  },
+];
 
 export function UserGuideContent() {
-  const steps = [
-    {
-      title: '彰師單一登入 (SSO) 驗證',
-      desc: '對接彰師標準授權介面進行資格審查。系統僅獲取必要的投票權限聲明，全程不經手且不儲存您的登入憑據，確保個人身分資訊受技術與法律雙重保障。',
-      icon: <UserCircle2 className="w-6 h-6 md:w-7 md:h-7" />,
-      color: 'bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)]',
-    },
-    {
-      title: '隱私保護金鑰與零知識證明生成',
-      desc: '在您的本地終端生成專屬加密金鑰。基於零知識證明 (Zero-Knowledge Proof) 技術，您可在不揭露真實身分的前提下，向系統證明合法的投票權，實現絕對匿名與抗關聯性。',
-      icon: <Fingerprint className="w-6 h-6 md:w-7 md:h-7" />,
-      color: 'bg-[var(--color-secondary-container)] text-[var(--color-on-secondary-container)]',
-    },
-    {
-      title: '端對端加密投票與分散式存證',
-      desc: '選票經由高強度非對稱加密函數加密。一旦完成提交，內容即具備不可竄改性與公開可稽核性，確保選舉過程絕對公正、透明。',
-      icon: <Database className="w-6 h-6 md:w-7 md:h-7" />,
-      color: 'bg-[var(--color-tertiary-container)] text-[var(--color-on-tertiary-container)]',
-    }
-  ];
-
   return (
-    <div className="py-2 px-1 md:px-2 max-w-4xl mx-auto scrollbar-hide select-none">
-      <style dangerouslySetInnerHTML={{ __html: `
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { 
-          -ms-overflow-style: none; 
-          scrollbar-width: none; 
-        }
-      `}} />
-      
-      <div className="relative">
-        {/* Vertical connecting line - Material 3 Outline Variant */}
-        <div className="absolute left-6 md:left-8 top-10 bottom-10 w-0.5 bg-[var(--color-outline-variant)] hidden md:block opacity-50" />
-
-        <div className="space-y-6 md:space-y-10">
-          {steps.map((step, index) => (
-            <div key={index} className="relative flex flex-col md:flex-row gap-4 md:gap-8 items-start group">
-              
-              {/* Step Indicator Container */}
-              <div className="relative z-10 flex-none hidden md:block">
-                <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center transition-all duration-300 group-hover:scale-105 shadow-sm ${step.color}`}>
-                  {step.icon}
-                </div>
-                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-sm font-medium text-[var(--color-outline)] opacity-40 font-mono">
-                  STEP 0{index + 1}
-                </div>
-              </div>
-
-              {/* Mobile Step Indicator */}
-              <div className="flex items-center gap-3 md:hidden">
-                <div className={`p-2 rounded-xl ${step.color}`}>
-                  {step.icon}
-                </div>
-                <span className="text-xs font-bold tracking-widest text-[var(--color-primary)] opacity-70">STEP 0{index + 1}</span>
-              </div>
-
-              {/* Content Card - Material 3 Surface Container */}
-              <div className="flex-1 w-full p-5 md:p-8 rounded-[28px] bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)]/20 hover:border-[var(--color-primary)]/30 transition-all duration-400 group-hover:shadow-md">
-                <h3 className="text-lg md:text-xl font-semibold text-[var(--color-on-surface)] mb-3 tracking-tight">
-                  {step.title}
-                </h3>
-                <p className="text-[var(--color-on-surface-variant)] text-sm md:text-base leading-relaxed font-normal">
-                  {step.desc}
-                </p>
-              </div>
+    <div className="space-y-4">
+      <ol className="list-none divide-y divide-[var(--color-outline-variant)] overflow-hidden rounded-3xl bg-[var(--color-surface-container-lowest)] p-0">
+        {STEPS.map((step, index) => (
+          <li key={step.title} className="flex items-start gap-4 p-5">
+            <IconTile icon={step.icon} tone="primary" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-[var(--color-primary)]">步驟 {index + 1}</p>
+              <h3 className="type-title-medium mt-0.5 text-[var(--color-on-surface)]">{step.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-on-surface-variant)]">{step.desc}</p>
             </div>
-          ))}
-        </div>
-      </div>
+          </li>
+        ))}
+      </ol>
 
-      {/* Security Assurance Footer */}
-      <div className="mt-10 md:mt-16 flex justify-center px-4">
-        <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[var(--color-surface-container-high)] border border-[var(--color-outline-variant)]/50">
-          <Lock className="w-4 h-4 text-[var(--color-primary)]" />
-          <span className="text-[var(--color-on-surface-variant)] text-xs md:text-sm font-medium">
-            基於密碼學技術標準，確保所有選票均受到端對端隱私保護。
-          </span>
-        </div>
-      </div>
+      {/* 這是真正會影響選民的事，必須講清楚 */}
+      <Notice tone="warning" icon={Smartphone} title="請用同一台裝置、同一個瀏覽器完成投票">
+        投票金鑰只存在您第一次開啟投票頁的那個瀏覽器裡。若中途換裝置、換瀏覽器，或清除了瀏覽資料，將無法完成投票。
+      </Notice>
+
+      <Notice tone="neutral" icon={Lock}>
+        選票內容在離開您的裝置前就已加密，伺服器於開票前無法讀取。
+      </Notice>
     </div>
   );
 }

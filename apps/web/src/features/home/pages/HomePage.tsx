@@ -1,11 +1,15 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import { api } from '../../auth/services/auth.api';
 import { API_ENDPOINTS } from '../../../lib/constants';
 import { type Election, ElectionType } from '@savote/shared-types';
-import { Card } from '../../../components/m3/Card';
-import { Button } from '../../../components/m3/Button';
-import { AlertCircle, Vote, ChevronRight, Timer, Clock, Lock } from 'lucide-react';
+import { Button, ButtonLink } from '../../../components/m3/Button';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { AlertCircle, Vote, Timer, Check, BarChart3, RotateCw, Inbox, FileText } from 'lucide-react';
+import { cn } from '../../../lib/utils';
+import { formatDateTime, formatRemaining } from '../../../lib/datetime';
+import { PageHeader } from '../../../components/ui/PageHeader';
+import { StatusBadge, type StatusTone } from '../../../components/ui/StatusBadge';
 
 export const ELECTION_TYPE_LABELS: Record<string, string> = {
     [ElectionType.PRESIDENTIAL]: '正副會長選舉',
@@ -13,143 +17,213 @@ export const ELECTION_TYPE_LABELS: Record<string, string> = {
     [ElectionType.AT_LARGE_COUNCILOR]: '不分區議員選舉',
 };
 
+type StatusKey = 'draft' | 'upcoming' | 'active' | 'finished';
+
+interface StatusInfo {
+    key: StatusKey;
+    label: string;
+    tone: StatusTone;
+    icon: React.ElementType;
+    started: boolean;
+}
+
+/**
+ * 狀態不只靠顏色傳達（WCAG 1.4.1）：
+ * 每個狀態都有不同的「圖示形狀 + 文字 + 卡片表面層級」，
+ * 色盲使用者不看顏色也能分辨。
+ */
+const getStatusInfo = (start: Date | null, end: Date | null, now: number): StatusInfo => {
+    if (!start || !end)
+        return {
+            key: 'draft',
+            label: '準備中',
+            tone: 'neutral',
+            icon: Timer,
+            started: false,
+        };
+
+    if (now < start.getTime())
+        return {
+            key: 'upcoming',
+            label: '即將開始',
+            tone: 'warning',
+            icon: Timer,
+            started: false,
+        };
+
+    if (now <= end.getTime())
+        return {
+            key: 'active',
+            label: '投票進行中',
+            tone: 'success',
+            icon: Vote,
+            started: true,
+        };
+
+    return {
+        key: 'finished',
+        label: '已結束',
+        tone: 'neutral',
+        icon: Check,
+        started: true,
+    };
+};
+
+const ElectionCardSkeleton = () => (
+    <div className="flex h-full flex-col overflow-hidden rounded-3xl bg-[var(--color-surface-container-lowest)]">
+        <div className="flex-1 space-y-4 p-6">
+            <div className="skeleton h-6 w-28 rounded-full" />
+            <div className="skeleton h-6 w-4/5" />
+            <div className="skeleton h-16 w-full rounded-2xl" />
+            <div className="skeleton h-[52px] w-full rounded-full" />
+        </div>
+    </div>
+);
+
 export const HomePage = () => {
-    const { data: elections = [], isLoading } = useQuery({
-        queryKey: ["elections"],
+    const { data: elections = [], isLoading, isError, refetch } = useQuery({
+        queryKey: ['elections'],
         queryFn: async () => {
             const response = await api.get<Election[]>(API_ENDPOINTS.ELECTIONS.LIST);
             return response.data;
         },
     });
 
-    const getStatusInfo = (election: Election) => {
-        const now = new Date();
-        const start = election.startTime ? new Date(election.startTime) : null;
-        const end = election.endTime ? new Date(election.endTime) : null;
-
-        if (!start || !end) return { label: '準備中', color: 'text-gray-500 bg-gray-100', icon: <Timer className="w-3 h-3" />, started: false };
-
-        if (now < start) return { label: '即將開始', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', icon: <Timer className="w-3 h-3" />, started: false };
-        if (now >= start && now <= end) return { label: '投票進行中', color: 'text-green-600 bg-green-50 dark:bg-green-900/20', icon: <Vote className="w-3 h-3" />, active: true, started: true, finished: false };
-        return { label: '已結束', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20', icon: <Timer className="w-3 h-3" />, started: true, finished: true };
-    };
+    // 倒數需要隨時間前進。每 30 秒推一次就夠了 —— 不需要每秒重繪整個列表。
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setNow(Date.now()), 30_000);
+        return () => clearInterval(id);
+    }, []);
 
     return (
-        <div className="space-y-10 pb-24 animate-fade-in select-none">
-            <header className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                    <div className="h-8 w-1.5 bg-[var(--color-primary)] rounded-full" />
-                    <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-on-surface)] tracking-tight">
-                        選舉列表
-                    </h2>
-                </div>
-                <p className="text-[var(--color-on-surface-variant)] font-medium opacity-70 ml-4 max-w-2xl">
-                    歡迎參與校園民主！請在下方列表中選擇您感興趣的選舉項目，查看詳情或進行投票。
-                </p>
-            </header>
+        <div className="space-y-6 pb-8">
+            <PageHeader
+                title="選舉列表"
+                description="歡迎參與校園民主。請在下方選擇選舉項目，查看詳情或進行投票。"
+            />
 
             {isLoading ? (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {[1, 2, 3].map(i => <div key={i} className="h-72 bg-[var(--color-surface-container-low)] rounded-xl animate-pulse" />)}
+                <div role="status" aria-label="載入選舉列表中" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <ElectionCardSkeleton />
+                    <ElectionCardSkeleton />
+                    <ElectionCardSkeleton />
                 </div>
+            ) : isError ? (
+                <EmptyState
+                    tone="error"
+                    icon={AlertCircle}
+                    title="無法載入選舉列表"
+                    description="請確認網路連線後再試一次。若問題持續，請聯繫學生會選舉委員會。"
+                    action={
+                        <Button variant="outlined" icon={<RotateCw className="h-4 w-4" />} onClick={() => refetch()}>
+                            重新載入
+                        </Button>
+                    }
+                />
             ) : elections.length === 0 ? (
-                <Card className="p-16 text-center flex flex-col items-center gap-6 rounded-xl bg-[var(--color-surface-container-low)] border-2 border-dashed border-[var(--color-outline-variant)] opacity-60">
-                    <div className="p-6 rounded-full bg-[var(--color-surface-container-high)]">
-                        <AlertCircle className="w-16 h-16 text-[var(--color-outline)]" />
-                    </div>
-                    <div>
-                        <h3 className="text-2xl font-bold text-[var(--color-on-surface)] mb-2">目前尚無進行中的選舉</h3>
-                        <p className="text-[var(--color-on-surface-variant)] font-medium">請密切關注學生會公告，或稍後再回來查看。</p>
-                    </div>
-                </Card>
+                <EmptyState
+                    icon={Inbox}
+                    title="目前沒有開放中的選舉"
+                    description="選舉開放時會公告於學生會各社群平台。您也可以先查看選舉公報了解候選人資訊。"
+                    action={
+                        <ButtonLink to="/info/bulletin" variant="outlined" icon={<FileText className="h-4 w-4" />}>
+                            查看選舉公報
+                        </ButtonLink>
+                    }
+                />
             ) : (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className="stagger grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3">
                     {elections.map((election) => {
-                        const status = getStatusInfo(election);
-                        const now = new Date();
                         const start = election.startTime ? new Date(election.startTime) : null;
                         const end = election.endTime ? new Date(election.endTime) : null;
-                        const hasStarted = start && now >= start;
+                        const status = getStatusInfo(start, end, now);
+                        const description = (election as { description?: string }).description;
+
+                        const remaining =
+                            status.key === 'active' && end
+                                ? formatRemaining(end.getTime() - now)
+                                : status.key === 'upcoming' && start
+                                  ? formatRemaining(start.getTime() - now)
+                                  : null;
+
+                        const when = status.started ? end : start;
 
                         return (
-                            <Card
-                                key={election.id}
-                                variant="elevated"
-                                className="group flex flex-col h-full rounded-2xl overflow-hidden border border-[var(--color-outline-variant)]/20 hover:-translate-y-2 hover:shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] bg-[var(--color-surface)]"
-                            >
-                                {/* Card Header / Status */}
-                                <div className="relative h-32 overflow-hidden bg-[var(--color-surface-container-high)]">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/10 to-transparent group-hover:scale-110 transition-transform duration-700" />
-                                    <div className="absolute top-5 left-6 flex flex-col gap-2">
-                                        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase shadow-sm ${status.color}`}>
-                                            {status.active && (
-                                                <span className="relative flex h-2 w-2">
-                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                                </span>
-                                            )}
-                                            {status.icon}
+                            <li key={election.id} className="flex">
+                                <article className="flex w-full flex-col rounded-3xl bg-[var(--color-surface-container-lowest)] p-5 md:p-6">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <StatusBadge tone={status.tone} icon={status.icon} pulse={status.key === 'active'}>
                                             {status.label}
-                                        </div>
-                                        <div className="px-3 py-1 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 text-[9px] font-bold text-[var(--color-on-surface-variant)] uppercase tracking-wider w-fit">
+                                        </StatusBadge>
+                                        <span className="truncate text-[13px] text-[var(--color-on-surface-variant)]">
                                             {ELECTION_TYPE_LABELS[election.type] || election.type}
-                                        </div>
-                                    </div>
-                                    <div className="absolute -bottom-10 -right-10 p-10 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-500 transform group-hover:rotate-12 transition-transform">
-                                        <Vote className="w-32 h-32" />
-                                    </div>
-                                </div>
-
-                                <div className="p-8 flex-1 flex flex-col">
-                                    <div className="flex items-center gap-2 text-[10px] font-bold tracking-[0.1em] text-[var(--color-primary)] uppercase mb-3">
-                                        <Clock className="w-3 h-3" />
-                                        <span>
-                                            {hasStarted
-                                                ? `結束時間：${end ? end.toLocaleString() : '-'}`
-                                                : `開始時間：${start ? start.toLocaleString() : '-'}`
-                                            }
                                         </span>
                                     </div>
 
-                                    <h3 className="text-2xl font-bold mb-3 text-[var(--color-on-surface)] line-clamp-2 leading-tight group-hover:text-[var(--color-primary)] transition-colors" title={election.name}>
+                                    <h2
+                                        className="type-title-large mt-4 line-clamp-2 text-[var(--color-on-surface)]"
+                                        title={election.name}
+                                    >
                                         {election.name}
-                                    </h3>
+                                    </h2>
 
-                                    <div className="space-y-4 mb-8">
-                                        <p className="text-sm text-[var(--color-on-surface-variant)] line-clamp-2 font-medium opacity-80 leading-relaxed">
-                                            {(election as any).description || '點擊下方按鈕以參與投票或查看本屆選舉的詳細資訊與即時開票狀況。'}
+                                    {description && (
+                                        <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-[var(--color-on-surface-variant)]">
+                                            {description}
                                         </p>
-                                    </div>
+                                    )}
 
-                                    <div className="flex flex-col gap-3 mt-auto">
-                                        {status.active ? (
-                                            <Link to={`/vote/${election.id}`} className="w-full">
-                                                <Button className="w-full h-14 rounded-xl font-bold shadow-lg shadow-[var(--color-primary)]/10 group-hover:gap-4 transition-all" icon={<Vote className="w-5 h-5" />}>
-                                                    進入投票所
-                                                </Button>
-                                            </Link>
-                                        ) : status.finished ? (
-                                            <Button disabled className="w-full h-14 rounded-xl font-bold opacity-50 grayscale" icon={<Lock className="w-5 h-5" />}>
-                                                投票結束
-                                            </Button>
-                                        ) : (
-                                            <Button disabled className="w-full h-14 rounded-xl font-bold opacity-50 grayscale" icon={<Timer className="w-5 h-5" />}>
-                                                尚未開放
-                                            </Button>
+                                    {/* 時間資訊：卡片內的灰色區塊，兩欄對齊 */}
+                                    <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-[var(--color-outline-variant)] text-sm">
+                                        <div className={cn('bg-[var(--color-surface-container)] px-4 py-3', !remaining && 'col-span-2')}>
+                                            <dt className="text-xs text-[var(--color-on-surface-variant)]">
+                                                {status.started ? '截止時間' : '開始時間'}
+                                            </dt>
+                                            <dd className="tabular mt-0.5 font-semibold text-[var(--color-on-surface)]">
+                                                {when ? formatDateTime(when) : '—'}
+                                            </dd>
+                                        </div>
+                                        {remaining && (
+                                            <div className="bg-[var(--color-surface-container)] px-4 py-3">
+                                                <dt className="text-xs text-[var(--color-on-surface-variant)]">
+                                                    {status.key === 'active' ? '距離截止' : '距離開始'}
+                                                </dt>
+                                                <dd className="tabular mt-0.5 font-semibold text-[var(--color-on-surface)]">
+                                                    {remaining}
+                                                </dd>
+                                            </div>
                                         )}
+                                    </dl>
+
+                                    <div className="mt-5 flex flex-1 flex-col justify-end gap-2">
+                                        {status.key === 'active' ? (
+                                            <ButtonLink to={`/vote/${election.id}`} size="lg" className="w-full" icon={<Vote className="h-5 w-5" />}>
+                                                進入投票所
+                                            </ButtonLink>
+                                        ) : status.key !== 'finished' ? (
+                                            <Button disabled size="lg" className="w-full" icon={<Timer className="h-5 w-5" />}>
+                                                尚未開放投票
+                                            </Button>
+                                        ) : null}
+
                                         {status.started && (
-                                            <Link to={`/${election.id}/results`} className="w-full">
-                                                <Button variant="text" className="w-full h-12 rounded-xl font-bold hover:bg-[var(--color-primary)]/5" icon={<ChevronRight className="w-4 h-4" />}>
-                                                    查看結果
-                                                </Button>
-                                            </Link>
+                                            <ButtonLink
+                                                to={`/${election.id}/results`}
+                                                variant={status.key === 'finished' ? 'tonal' : 'outlined'}
+                                                size="lg"
+                                                className="w-full"
+                                                icon={<BarChart3 className="h-5 w-5" />}
+                                            >
+                                                查看開票結果
+                                            </ButtonLink>
                                         )}
                                     </div>
-                                </div>
-                            </Card>
+                                </article>
+                            </li>
                         );
                     })}
-                </div>
+                </ul>
             )}
         </div>
     );

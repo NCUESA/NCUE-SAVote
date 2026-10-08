@@ -16,10 +16,10 @@ export function VoterManagementPage() {
   if (!user) return null;
 
   return (
-    <div className="animate-fade-in pb-24 space-y-8 select-none">
-      <AdminHeader 
-          title="選舉人名冊管理"
-          subtitle="匯入與管理符合資格的選舉人名冊，設定投票權限。"
+    <div className="space-y-6 pb-8">
+      <AdminHeader
+          title="選舉人名冊"
+          subtitle="匯入符合資格的選舉人名冊，並查看投票金鑰的登記狀態。"
       />
 
       <VoterImport />

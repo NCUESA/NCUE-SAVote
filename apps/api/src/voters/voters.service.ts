@@ -14,7 +14,6 @@ import type {
 } from '@savote/shared-types';
 import type { Election as PrismaElection } from '@prisma/client';
 import * as crypto from 'crypto';
-import { generateIdentityCommitment } from '@savote/crypto-lib';
 
 export interface ParsedVoterRecord {
   studentId: string;
@@ -45,10 +44,9 @@ export class VotersService {
     studentIdHash: string,
     commitment: string,
   ) {
-    this.logger.log(
-      `Registering identity commitment for election ${electionId}`,
-      `Write the commitment for ${commitment}`
-    );
+    // 刻意不記錄 commitment：它可以在資料庫裡對應回 hashedID，
+    // 寫進日誌等於把「選民 ↔ 選票識別碼」的對照表複製一份到日誌檔。
+    this.logger.log(`Registering identity commitment for election ${electionId}`);
 
     const election = await this.prisma.election.findUnique({
       where: { id: electionId },
@@ -99,7 +97,7 @@ export class VotersService {
         },
       });
 
-      this.logger.log(`Create VoteKey Success: ${newVoteKey.id}`);
+      this.logger.log(`Vote key created for election ${electionId}`);
       return { success: true };
     });
   }

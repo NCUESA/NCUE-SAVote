@@ -7,10 +7,16 @@ services:
     container_name: savote-db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      # 注意：POSTGRES_PASSWORD 只在資料目錄「第一次初始化」時生效。
+      # 既有資料庫要改密碼，必須先在資料庫內執行 ALTER USER；
+      # 只改這裡不會生效，反而會讓 API 連不上。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: savote_db
     ports:
-      - "5432:5432"
+      # 原本是 "5432:5432"，綁在 0.0.0.0 上 —— 這台主機有公開 IP，
+      # 等於把資料庫直接暴露在網際網路，而且密碼是字面值 password。
+      # 改為只監聽 127.0.0.1，僅供主機內維運使用。
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +30,9 @@ services:
   # --- 2. 後端 (NestJS API) ---
   api:
     ports:
-      - "3000:3000"
+      # 對外流量走 nginx → savote-web:80 → api:3000（docker 內網），
+      # 不需要把 API 直接公開在主機的 0.0.0.0 上。
+      - "127.0.0.1:3000:3000"
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -32,14 +40,21 @@ services:
     env_file:
       - ./apps/api/.env
     environment:
-      DATABASE_URL: "postgresql://postgres:password@db:5432/savote_db?schema=public"
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-password}@db:5432/savote_db?schema=public"
       NODE_ENV: production
     depends_on:
       db:
         condition: service_healthy
-    # 使用 db push 模式：同步結構
+    # 結構同步
+    #
+    # 原本帶著 --accept-data-loss：只要 schema 與現況有破壞性差異，
+    # prisma 會直接刪掉欄位或資料表，不會詢問。這座資料庫裡有正在進行中
+    # 的選舉與已投選票，那個旗標等於把資料安全交給運氣。
+    #
+    # 拿掉之後，遇到破壞性變更 prisma 會中止並報錯 —— 對選舉系統而言，
+    # 部署失敗遠優於無聲地銷毀選票。
     command: >
-      sh -c "cd apps/api && npx prisma db push --accept-data-loss && npx prisma db seed && npm run start:dev"
+      sh -c "cd apps/api && npx prisma db push && npx prisma db seed && npm run start:dev"
     restart: always
     networks:
       - savote-network
@@ -50,12 +65,15 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_API_BASE_URL: "${CORS_ORIGIN:-http://127.0.0.1:8080}/api"
+        # 原本是 "${CORS_ORIGIN:-http://127.0.0.1:8080}/api"。
+        # CORS_ORIGIN 只寫在 apps/api/.env（env_file 不參與 compose 變數替換），
+        # 而 sudo 又會清掉 shell 環境變數 —— 於是 fallback 的 127.0.0.1 被打包進前端，
+        # 使用者瀏覽器去連自己電腦的 127.0.0.1，選舉列表與管理員登入全部失敗。
+        # 改用同源相對路徑：容器內 nginx 已將 /api/ 轉發給 api:3000，不依賴任何環境變數。
+        VITE_API_BASE_URL: "${VITE_API_BASE_URL:-/api}"
     container_name: savote-web
     ports:
       - "8080:80"
-    environment:
-      VITE_API_BASE_URL: "${CORS_ORIGIN:-http://127.0.0.1:8080}/api"
     depends_on:
       - api
     restart: always

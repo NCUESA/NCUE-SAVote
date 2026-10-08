@@ -15,11 +15,11 @@ export function AuthError() {
   return (
     <div className="flex justify-center items-center min-h-screen p-4 bg-[var(--color-background)]">
       <Card className="max-w-md w-full p-8 text-center">
-        <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-[var(--color-error-container)] mb-6">
-          <AlertCircle className="h-8 w-8 text-[var(--color-on-error-container)]" />
+        <div className="mx-auto flex items-center justify-center h-14 w-14 rounded-2xl bg-[var(--color-error-container)] mb-5">
+          <AlertCircle className="h-7 w-7 text-[var(--color-on-error-container)]" />
         </div>
 
-        <h2 className="text-2xl font-bold mb-2 text-[var(--color-on-surface)]">
+        <h2 className="type-headline-small mb-2 text-[var(--color-on-surface)]">
           登入失敗
         </h2>
 

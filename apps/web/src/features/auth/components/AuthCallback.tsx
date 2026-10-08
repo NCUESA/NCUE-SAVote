@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuthStore } from '../../../stores/auth.store';
+// 與 ProtectedRoute / useAuth 共用同一個 store（原本這裡用的是另一個重複的 store）
+import { useAuthStore } from '../stores/authStore';
 import { authApi } from '../services/auth.api';
 import { storage } from '../../../lib/localStorage';
 import { Card } from '../../../components/m3/Card';
@@ -23,6 +24,13 @@ export const AuthCallback = () => {
 
       const accessToken = searchParams.get('accessToken');
       const refreshToken = searchParams.get('refreshToken');
+
+      // 後端是用 query string 把 token 帶回來的，等於 access + refresh token
+      // 會留在網址列、瀏覽紀錄、Referer 標頭與 nginx / Cloudflare 的存取日誌裡。
+      // 取出後立刻從網址抹掉，縮小暴露面（根本解法仍須改後端，見安全性報告）。
+      if (accessToken || refreshToken) {
+        window.history.replaceState(null, '', '/auth/callback');
+      }
 
       if (accessToken && refreshToken) {
         try {

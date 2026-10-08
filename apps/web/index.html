@@ -2,14 +2,47 @@
 <html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/webp" href="/sa_logo.webp" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="manifest" href="/manifest.json" />
+    <!-- viewport-fit=cover 是 env(safe-area-inset-*) 生效的前提；
+         原本沒加，所以 iPhone 的劉海與底部手勢條會壓在介面上。
+         刻意不加 maximum-scale / user-scalable=no：禁止縮放會違反 WCAG 1.4.4。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
     <title>國立彰化師範大學學生會 學生選舉系統</title>
-    <meta name="description" content="國立彰化師範大學學生會區塊鏈投票系統，採用零知識證明技術確保投票隱私與透明度。" />
+    <meta name="description" content="國立彰化師範大學學生會學生選舉系統，採用零知識證明技術確保投票隱私與透明度。" />
+
+    <link rel="icon" type="image/webp" href="/sa_logo.webp" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- 瀏覽器 UI 跟隨深淺色；原本固定白色，深色模式下頂端會有一條白邊 -->
+    <meta name="theme-color" content="#fdfcff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1c1e" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- iOS 加入主畫面後的全螢幕行為 -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="NCUESA 投票" />
+
+    <!-- 選舉系統不應該被搜尋引擎索引個別頁面，也不要洩漏 referrer -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- 首屏就要用到的 logo，提前抓 -->
+    <link rel="preload" as="image" href="/sa_logo.webp" fetchpriority="high" />
+
+    <!-- 在首次繪製前套用主題，避免深色模式使用者每次開啟都被閃一下白光。
+         刻意用獨立檔案而非 inline script：生產環境 CSP 沒有 'unsafe-inline'。 -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="padding:2rem;font-family:system-ui,sans-serif;line-height:1.7">
+        <h1>需要啟用 JavaScript</h1>
+        <p>本投票系統的選票加密與零知識證明都在您的瀏覽器中運算，因此必須啟用 JavaScript 才能使用。</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -4,6 +4,7 @@ import { useNullifierSecret } from '../hooks/useNullifierSecret';
 import { Button } from '../../../components/m3/Button';
 import { Loader2, ShieldCheck, Eye, EyeOff, Copy, Download, CheckCircle2, AlertTriangle, Key } from 'lucide-react';
 import { clsx } from 'clsx';
+import { formatDateTime } from '../../../lib/datetime';
 
 export const NullifierSetup = () => {
   const { secret, generateNewSecret, isReady, validationError } = useNullifierSecret();
@@ -35,7 +36,7 @@ export const NullifierSetup = () => {
 
   const handleDownloadSecret = () => {
     if (secret) {
-      const blob = new Blob([`投票系統 匿名金鑰備份\n產生時間: ${new Date().toLocaleString()}\n\n金鑰:\n${secret}\n\n警告:\n此金鑰用於匿名投票。請務必妥善保存。\n若遺失，將無法找回或重新產生。\n請勿與他人分享此金鑰。`], { type: 'text/plain' });
+      const blob = new Blob([`投票系統 匿名金鑰備份\n產生時間: ${formatDateTime(new Date())}\n\n金鑰:\n${secret}\n\n警告:\n此金鑰用於匿名投票。請務必妥善保存。\n若遺失，將無法找回或重新產生。\n請勿與他人分享此金鑰。`], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -82,7 +83,7 @@ export const NullifierSetup = () => {
     <div className="space-y-8">
       {/* Header Icon */}
       <div className="text-center animate-scale-in">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-[var(--color-primary-container)] to-[var(--color-secondary-container)] mb-6 shadow-lg">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-[var(--color-primary-container)] to-[var(--color-secondary-container)] mb-6">
           <ShieldCheck className="w-10 h-10 text-[var(--color-on-primary-container)]" />
         </div>
         <h3 className="text-2xl font-bold text-[var(--color-on-surface)] mb-2">
@@ -94,7 +95,7 @@ export const NullifierSetup = () => {
       </div>
 
       {/* Secret Display Card */}
-      <div className="bg-[var(--color-surface-container)] rounded-2xl border border-[var(--color-outline-variant)] overflow-hidden shadow-sm animate-fade-in-up">
+      <div className="bg-[var(--color-surface-container)] rounded-2xl border border-[var(--color-outline-variant)] overflow-hidden animate-fade-in-up">
         {/* Card Header */}
         <div className="px-4 py-3 bg-[var(--color-surface-container-high)] border-b border-[var(--color-outline-variant)] flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-on-surface)]">
@@ -103,6 +104,8 @@ export const NullifierSetup = () => {
             </div>
             <button
                 onClick={() => setShowSecret(!showSecret)}
+                aria-pressed={showSecret}
+                aria-label={showSecret ? '隱藏投票金鑰' : '顯示投票金鑰'}
                 className="text-xs font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] flex items-center gap-1 px-2 py-1 rounded hover:bg-[var(--color-surface-variant)]/50 transition-colors"
             >
                 {showSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
@@ -113,7 +116,7 @@ export const NullifierSetup = () => {
         {/* Code Block */}
         <div className="p-6 relative bg-[var(--color-surface)]">
             <div className={clsx(
-                "font-mono text-sm break-all leading-relaxed p-4 rounded-xl transition-all duration-300",
+                "break-all rounded-xl p-4 font-mono text-sm leading-relaxed transition-[filter,color] duration-[var(--dur-control)]",
                 showSecret 
                     ? "bg-[var(--color-surface-variant)]/30 text-[var(--color-on-surface)]" 
                     : "bg-[var(--color-surface-variant)]/10 text-transparent select-none blur-sm"
@@ -123,7 +126,7 @@ export const NullifierSetup = () => {
             
             {!showSecret && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="bg-[var(--color-inverse-surface)] text-[var(--color-inverse-on-surface)] px-4 py-2 rounded-full text-xs font-medium shadow-md">
+                    <span className="bg-[var(--color-inverse-surface)] text-[var(--color-inverse-on-surface)] px-4 py-2 rounded-full text-xs font-medium">
                          點擊顯示以查看金鑰
                     </span>
                 </div>
@@ -137,21 +140,21 @@ export const NullifierSetup = () => {
                 disabled={!showSecret}
                 className="flex items-center justify-center gap-2 py-4 text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-variant)]/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-                {copied ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                {copied ? <CheckCircle2 className="w-4 h-4 text-[var(--color-success)]" /> : <Copy className="w-4 h-4" />}
                 {copied ? '已複製' : '複製'}
             </button>
             <button
                 onClick={handleDownloadSecret}
                 className="flex items-center justify-center gap-2 py-4 text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-variant)]/50 transition-colors"
             >
-                {downloadComplete ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Download className="w-4 h-4" />}
+                {downloadComplete ? <CheckCircle2 className="w-4 h-4 text-[var(--color-success)]" /> : <Download className="w-4 h-4" />}
                 {downloadComplete ? '已下載' : '下載'}
             </button>
         </div>
       </div>
 
       {/* Warning */}
-      <div className="flex gap-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/30 animate-fade-in delay-100">
+      <div className="flex gap-4 p-4 rounded-xl bg-[var(--color-warning-container)]/60 text-[var(--color-on-warning-container)] border border-[var(--color-warning)]/30 animate-fade-in delay-100">
         <AlertTriangle className="h-6 w-6 flex-shrink-0" />
         <div className="space-y-1">
           <h3 className="text-sm font-bold">重要安全警告</h3>
@@ -162,13 +165,17 @@ export const NullifierSetup = () => {
       </div>
 
       {/* Confirmation */}
-      <label className="flex items-start p-4 rounded-xl border-2 border-transparent hover:border-[var(--color-outline-variant)] cursor-pointer transition-all animate-fade-in delay-200">
+      <label
+        htmlFor="nullifier-confirm"
+        className="flex cursor-pointer items-start rounded-xl border-2 border-transparent p-4 transition-colors duration-[var(--dur-micro)] hover:border-[var(--color-outline-variant)]"
+      >
         <div className="flex items-center h-6">
             <input
+                id="nullifier-confirm"
                 type="checkbox"
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                className="w-5 h-5 rounded border-[var(--color-outline-variant)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
             />
         </div>
         <div className="ml-3">
@@ -182,7 +189,7 @@ export const NullifierSetup = () => {
       <Button
         onClick={handleContinue}
         disabled={!confirmed}
-        className="w-full h-12 text-base shadow-lg hover:shadow-xl transition-shadow"
+        className="w-full h-12 text-base transition-shadow"
         variant="filled"
         icon={<CheckCircle2 className="w-5 h-5" />}
       >

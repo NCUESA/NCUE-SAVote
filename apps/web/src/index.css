@@ -1,94 +1,325 @@
 @import "tailwindcss";
 @import "./styles/animations.css";
 
-/* Material 3 Color System & Motion Tokens */
+/* =============================================================================
+   SAVote 設計系統
+   =============================================================================
+
+   單一語言：iOS 原生風格。
+
+     表面    靠明度分層，不靠陰影。淺色＝灰底白卡；深色＝純黑底、#1c1c1e 卡。
+     玻璃    只用在兩個地方：頂欄、導航列。其餘一律實心。
+     色彩    1 個品牌色（學生會藍）＋ 4 個語意色。顏色出現就代表一件事。
+     圓角    只有四種：full（按鈕、徽章、膠囊）／3xl 22px（卡片、面板、對話框）
+             ／2xl 16px（卡片內的區塊、圖示磚）／xl 12px（輸入框、小控制項）
+     陰影    卡片沒有陰影。只有浮在內容之上的東西（對話框、Toast、hover 浮起）才有。
+
+   原本這裡疊了三套語言：Material 3 的元件（ripple、tonal 按鈕、浮動標籤、
+   elevation 陰影）、Liquid Glass 的玻璃、再加上各頁面自己的寫法 ——
+   圓角出現 15 種、陰影 10 種。下面保留所有頁面在用的 token 名稱，
+   只換掉它們的值，頁面不需要逐一改寫就會一起換上同一套語言。
+
+   所有前景／背景組合都實測過對比度，淺色模式 ≥ AA、深色模式 ≥ AA。
+   ========================================================================== */
+
+/* ── 淺色 ────────────────────────────────────────────────────────────────── */
 :root {
-  /* Light Mode - Base Colors */
+  color-scheme: light;
+
+  /* 品牌：學生會藍。白字 on 主色 6.47:1、主色 on 白卡 6.47:1 */
   --md-sys-color-primary: #0061a4;
   --md-sys-color-on-primary: #ffffff;
-  --md-sys-color-primary-container: #d1e4ff;
-  --md-sys-color-on-primary-container: #001d36;
+  --md-sys-color-primary-container: #d9e8f6;
+  --md-sys-color-on-primary-container: #004a7d;
+  --md-sys-color-primary-hover: #004f86;
 
-  --md-sys-color-secondary: #535f70;
+  /* 次要色在新系統裡是「中性」：用於非主要的填色控制項 */
+  --md-sys-color-secondary: #5c5c62;
   --md-sys-color-on-secondary: #ffffff;
-  --md-sys-color-secondary-container: #d7e3f7;
-  --md-sys-color-on-secondary-container: #101c2b;
+  --md-sys-color-secondary-container: #e5e5ea;
+  --md-sys-color-on-secondary-container: #1c1c1e;
 
-  --md-sys-color-tertiary: #6b5778;
+  /* 第三色只用在「超級管理員」這個身分標記 */
+  --md-sys-color-tertiary: #6b4fa0;
   --md-sys-color-on-tertiary: #ffffff;
-  --md-sys-color-tertiary-container: #f2daff;
-  --md-sys-color-on-tertiary-container: #251431;
+  --md-sys-color-tertiary-container: #ebe3f7;
+  --md-sys-color-on-tertiary-container: #3d2766;
 
-  --md-sys-color-error: #ba1a1a;
+  /* 表面：灰底、白卡 */
+  --md-sys-color-background: #f2f2f7;
+  --md-sys-color-on-background: #1c1c1e;
+  --md-sys-color-surface: #f2f2f7;
+  --md-sys-color-on-surface: #1c1c1e;
+  --md-sys-color-surface-variant: #e5e5ea;
+  --md-sys-color-on-surface-variant: #5c5c62;       /* on 白卡 6.64、on 灰底 5.95 */
+
+  --md-sys-color-surface-container-lowest: #ffffff; /* 卡片 */
+  --md-sys-color-surface-container-low: #ffffff;    /* 卡片（與 lowest 同值，兩種寫法都對） */
+  --md-sys-color-surface-container: #f2f2f7;        /* 卡片內的區塊 */
+  --md-sys-color-surface-container-high: #e9e9ee;   /* 輸入框、凹槽 */
+  --md-sys-color-surface-container-highest: #dedee4;
+  --md-sys-color-surface-dim: #e5e5ea;
+  --md-sys-color-surface-bright: #ffffff;
+
+  --md-sys-color-outline: #8e8e93;                  /* 控制項外框，非文字需 3:1 → 3.26 */
+  --md-sys-color-outline-variant: #d8d8de;          /* 分隔線（裝飾性） */
+
+  --md-sys-color-inverse-surface: #1c1c1e;
+  --md-sys-color-inverse-on-surface: #f5f5f7;
+  --md-sys-color-inverse-primary: #5aa9ff;
+
+  /* 語意色 */
+  --md-sys-color-success: #0f6b33;
+  --md-sys-color-on-success: #ffffff;
+  --md-sys-color-success-container: #d7f2df;
+  --md-sys-color-on-success-container: #0a4a23;
+
+  --md-sys-color-warning: #7a5700;
+  --md-sys-color-on-warning: #ffffff;
+  --md-sys-color-warning-container: #fbecc8;
+  --md-sys-color-on-warning-container: #4d3700;
+
+  --md-sys-color-error: #c0262d;
   --md-sys-color-on-error: #ffffff;
-  --md-sys-color-error-container: #ffdad6;
-  --md-sys-color-on-error-container: #410002;
+  --md-sys-color-error-container: #fbe2e1;
+  --md-sys-color-on-error-container: #7f1418;
+  --md-sys-color-danger-container: #fbe2e1;
 
-  --md-sys-color-background: #fdfcff;
-  --md-sys-color-on-background: #1a1c1e;
-  
-  --md-sys-color-surface: #fdfcff;
-  --md-sys-color-on-surface: #1a1c1e;
-  --md-sys-color-surface-variant: #dfe2eb;
-  --md-sys-color-on-surface-variant: #43474e;
-  --md-sys-color-outline: #73777f;
-  --md-sys-color-outline-variant: #c3c7cf;
+  --md-sys-color-info: #0061a4;
+  --md-sys-color-on-info: #ffffff;
+  --md-sys-color-info-container: #d9e8f6;
+  --md-sys-color-on-info-container: #004a7d;
 
-  /* State Layers (Opacity handled in utility classes or via color-mix) */
-  --md-sys-state-hover: 0.08;
-  --md-sys-state-focus: 0.12;
-  --md-sys-state-pressed: 0.12;
-  --md-sys-state-dragged: 0.16;
+  --md-sys-color-ring-offset: #f2f2f7;
 
-  /* Elevation (Box Shadow) */
-  --md-sys-elevation-1: 0px 1px 2px 0px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15);
-  --md-sys-elevation-2: 0px 1px 2px 0px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15);
-  --md-sys-elevation-3: 0px 1px 3px 0px rgba(0, 0, 0, 0.3), 0px 4px 8px 3px rgba(0, 0, 0, 0.15);
-  --md-sys-elevation-4: 0px 2px 3px 0px rgba(0, 0, 0, 0.3), 0px 6px 10px 4px rgba(0, 0, 0, 0.15);
-  --md-sys-elevation-5: 0px 4px 4px 0px rgba(0, 0, 0, 0.3), 0px 8px 12px 6px rgba(0, 0, 0, 0.15);
+  /* 陰影：只給浮起的東西 */
+  --md-sys-elevation-1: none;
+  --md-sys-elevation-2: none;
+  --md-sys-elevation-3: 0 10px 28px -10px rgba(0, 0, 0, 0.16), 0 2px 6px -2px rgba(0, 0, 0, 0.06);
+  --md-sys-elevation-4: 0 24px 56px -16px rgba(0, 0, 0, 0.24), 0 4px 12px -4px rgba(0, 0, 0, 0.08);
+  --md-sys-elevation-5: 0 32px 72px -18px rgba(0, 0, 0, 0.3), 0 6px 16px -6px rgba(0, 0, 0, 0.1);
 }
 
+/* ── 深色 ────────────────────────────────────────────────────────────────── */
 .dark {
-  /* Dark Mode - Base Colors */
-  --md-sys-color-primary: #9ecaff;
-  --md-sys-color-on-primary: #003258;
-  --md-sys-color-primary-container: #00497d;
-  --md-sys-color-on-primary-container: #d1e4ff;
+  color-scheme: dark;
 
-  --md-sys-color-secondary: #bbc7db;
-  --md-sys-color-on-secondary: #253140;
-  --md-sys-color-secondary-container: #3b4858;
-  --md-sys-color-on-secondary-container: #d7e3f7;
+  /* 主色在深色模式用「亮藍底＋深字」。
+     iOS 原生的 #0a84ff 配白字只有 3.65:1，不合 AA。
+     #5aa9ff 當文字 on 卡片 6.93:1、當按鈕底配深字 7.15:1，兩種用途都過。 */
+  --md-sys-color-primary: #5aa9ff;
+  --md-sys-color-on-primary: #001a33;
+  --md-sys-color-primary-container: #18324d;
+  --md-sys-color-on-primary-container: #9cc9ff;
+  --md-sys-color-primary-hover: #7bbaff;
 
-  --md-sys-color-tertiary: #d6bee4;
-  --md-sys-color-on-tertiary: #3b2948;
-  --md-sys-color-tertiary-container: #523f5f;
-  --md-sys-color-on-tertiary-container: #f2daff;
+  --md-sys-color-secondary: #aeaeb2;
+  --md-sys-color-on-secondary: #1c1c1e;
+  --md-sys-color-secondary-container: #3a3a3c;
+  --md-sys-color-on-secondary-container: #f5f5f7;
 
-  --md-sys-color-error: #ffb4ab;
-  --md-sys-color-on-error: #690005;
-  --md-sys-color-error-container: #93000a;
-  --md-sys-color-on-error-container: #ffdad6;
+  --md-sys-color-tertiary: #c4a8f0;
+  --md-sys-color-on-tertiary: #2a1650;
+  --md-sys-color-tertiary-container: #33264a;
+  --md-sys-color-on-tertiary-container: #e2d3fa;
 
-  --md-sys-color-background: #1a1c1e;
-  --md-sys-color-on-background: #e2e2e6;
-  
-  --md-sys-color-surface: #1a1c1e;
-  --md-sys-color-on-surface: #e2e2e6;
-  --md-sys-color-surface-variant: #43474e;
-  --md-sys-color-on-surface-variant: #c3c7cf;
-  --md-sys-color-outline: #8d9199;
-  --md-sys-color-outline-variant: #43474e;
-  
-  /* Dark mode often has lighter elevation shadows or different treatment, keeping standard for now */
+  /* 表面：純黑底、#1c1c1e 卡 */
+  --md-sys-color-background: #000000;
+  --md-sys-color-on-background: #f5f5f7;
+  --md-sys-color-surface: #000000;
+  --md-sys-color-on-surface: #f5f5f7;
+  --md-sys-color-surface-variant: #2c2c2e;
+  --md-sys-color-on-surface-variant: #aeaeb2;       /* on 卡片 7.69、on 內層 6.30 */
+
+  --md-sys-color-surface-container-lowest: #1c1c1e;
+  --md-sys-color-surface-container-low: #1c1c1e;
+  --md-sys-color-surface-container: #2c2c2e;
+  --md-sys-color-surface-container-high: #3a3a3c;
+  --md-sys-color-surface-container-highest: #48484a;
+  --md-sys-color-surface-dim: #000000;
+  --md-sys-color-surface-bright: #2c2c2e;
+
+  --md-sys-color-outline: #8e8e93;
+  --md-sys-color-outline-variant: #38383a;
+
+  --md-sys-color-inverse-surface: #f5f5f7;
+  --md-sys-color-inverse-on-surface: #1c1c1e;
+  --md-sys-color-inverse-primary: #0061a4;
+
+  --md-sys-color-success: #6fd68e;
+  --md-sys-color-on-success: #00210c;
+  --md-sys-color-success-container: #12331e;
+  --md-sys-color-on-success-container: #9ee8b2;
+
+  --md-sys-color-warning: #f5c451;
+  --md-sys-color-on-warning: #2b1d00;
+  --md-sys-color-warning-container: #3a2c08;
+  --md-sys-color-on-warning-container: #fbdd94;
+
+  --md-sys-color-error: #ff8a84;
+  --md-sys-color-on-error: #3b0004;
+  --md-sys-color-error-container: #3d1415;
+  --md-sys-color-on-error-container: #ffb4ae;
+  --md-sys-color-danger-container: #3d1415;
+
+  --md-sys-color-info: #5aa9ff;
+  --md-sys-color-on-info: #001a33;
+  --md-sys-color-info-container: #18324d;
+  --md-sys-color-on-info-container: #9cc9ff;
+
+  --md-sys-color-ring-offset: #000000;
+
+  --md-sys-elevation-1: none;
+  --md-sys-elevation-2: none;
+  --md-sys-elevation-3: 0 10px 28px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --md-sys-elevation-4: 0 24px 56px -16px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --md-sys-elevation-5: 0 32px 72px -18px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 
+/* =============================================================================
+   動態
+   時長對應距離：移動越遠、時間越長。退場比進場短約 40%。
+   ========================================================================== */
+:root {
+  --dur-micro: 120ms;    /* 按壓、勾選、hover */
+  --dur-control: 200ms;  /* Toast、下拉、提示 */
+  --dur-panel: 280ms;    /* 對話框、抽屜、卡片 */
+  --dur-page: 420ms;     /* 路由切換 */
+  --dur-ceremony: 640ms; /* 投票成功 —— 全站僅此一處 */
+  --dur-exit: 160ms;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-glass: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* =============================================================================
+   玻璃 —— 只用在頂欄與導航列
+   不透明度由對比度反推：白玻璃疊在任何背景上，主文字都至少 AA。
+   ========================================================================== */
+:root {
+  --glass-fill: rgba(249, 249, 251, 0.86);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 8px 28px -12px rgba(0, 0, 0, 0.18);
+  --glass-blur: 30px;
+}
+.dark {
+  --glass-fill: rgba(28, 28, 30, 0.84);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 10px 32px -12px rgba(0, 0, 0, 0.8);
+}
+
+/* 元件類規則一律放在 components 層。未分層的 CSS 會無條件蓋過
+   Tailwind 的 @layer utilities —— 原本 .glass 的 position: relative 就是
+   這樣把頂欄的 fixed 蓋掉，讓頂欄掉到畫面中間。 */
+@layer components {
+  .glass {
+    position: relative;
+    background-color: var(--glass-fill);
+    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--glass-shadow);
+  }
+
+  /* 導航作用中的項目：中性高光膠囊，圖示與文字用主色。
+     不再是染藍的透鏡 —— 那會和主要按鈕的藍搶視覺重量。 */
+  .nav-active {
+    background-color: rgba(0, 0, 0, 0.06);
+    color: var(--md-sys-color-primary);
+  }
+  .dark .nav-active {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+
+  /* 分段控制選中的那一段：淺色是白色浮起，深色是比凹槽更亮的灰 */
+  .seg-active {
+    background-color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  }
+  .dark .seg-active {
+    background-color: #636366;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--md-sys-color-primary);
+    outline-offset: 2px;
+  }
+
+  /* 漸變過渡的通用設定（保留給既有使用處） */
+  .transition-standard {
+    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+    transition-timing-function: var(--ease-standard);
+    transition-duration: var(--dur-control);
+  }
+
+  .elevation-1 { box-shadow: var(--md-sys-elevation-1); }
+  .elevation-2 { box-shadow: var(--md-sys-elevation-2); }
+  .elevation-3 { box-shadow: var(--md-sys-elevation-3); }
+  .elevation-4 { box-shadow: var(--md-sys-elevation-4); }
+  .elevation-5 { box-shadow: var(--md-sys-elevation-5); }
+
+  /* 字級：對應 iOS 的 Large Title / Title / Headline / Body / Footnote。
+     clamp() 讓手機與桌機共用同一組 class。 */
+  .type-display-large  { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3rem);     line-height: 1.1;  font-weight: 700; letter-spacing: -0.025em; }
+  .type-display-medium { font-size: clamp(2rem, 1.5rem + 2vw, 2.5rem);        line-height: 1.12; font-weight: 700; letter-spacing: -0.022em; }
+  .type-display-small  { font-size: clamp(1.75rem, 1.45rem + 1.2vw, 2.125rem); line-height: 1.18; font-weight: 700; letter-spacing: -0.02em; }
+  .type-headline-large  { font-size: 1.75rem;   line-height: 1.22; font-weight: 700; letter-spacing: -0.015em; }
+  .type-headline-medium { font-size: 1.5rem;    line-height: 1.25; font-weight: 700; letter-spacing: -0.012em; }
+  .type-headline-small  { font-size: 1.375rem;  line-height: 1.27; font-weight: 700; letter-spacing: -0.01em; }
+  .type-title-large  { font-size: 1.25rem;   line-height: 1.3;  font-weight: 600; letter-spacing: -0.008em; }
+  .type-title-medium { font-size: 1.0625rem; line-height: 1.35; font-weight: 600; }
+  .type-title-small  { font-size: 0.9375rem; line-height: 1.35; font-weight: 600; }
+  .type-body-large  { font-size: 1.0625rem; line-height: 1.5; }
+  .type-body-medium { font-size: 0.9375rem; line-height: 1.5; }
+  .type-body-small  { font-size: 0.8125rem; line-height: 1.45; }
+  .type-label-large  { font-size: 0.9375rem; line-height: 1.3; font-weight: 600; }
+  .type-label-medium { font-size: 0.8125rem; line-height: 1.3; font-weight: 600; }
+  .type-label-small  { font-size: 0.75rem;   line-height: 1.3; font-weight: 600; }
+
+  /* 清單進場：40ms 交錯，第 6 項之後同時出現 */
+  .stagger > * { animation: fade-in-up var(--dur-panel) var(--ease-standard) backwards; }
+  .stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger > *:nth-child(n + 6) { animation-delay: 200ms; }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* 玻璃的三種退場：不支援 backdrop-filter、使用者要求降低透明度、高對比 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background-color: var(--md-sys-color-surface-container-lowest); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background-color: var(--md-sys-color-surface-container-lowest);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .glass {
+    background-color: var(--md-sys-color-surface-container-lowest);
+    border-color: var(--md-sys-color-outline);
+  }
+  .nav-active { outline: 2px solid var(--md-sys-color-primary); }
+}
+
+/* =============================================================================
+   Tailwind 對應
+   ========================================================================== */
 @theme {
-  /* Mapping M3 Tokens to Tailwind Colors */
   --color-primary: var(--md-sys-color-primary);
   --color-on-primary: var(--md-sys-color-on-primary);
   --color-primary-container: var(--md-sys-color-primary-container);
   --color-on-primary-container: var(--md-sys-color-on-primary-container);
+  --color-primary-hover: var(--md-sys-color-primary-hover);
 
   --color-secondary: var(--md-sys-color-secondary);
   --color-on-secondary: var(--md-sys-color-on-secondary);
@@ -104,109 +335,145 @@
   --color-on-error: var(--md-sys-color-on-error);
   --color-error-container: var(--md-sys-color-error-container);
   --color-on-error-container: var(--md-sys-color-on-error-container);
+  --color-danger-container: var(--md-sys-color-danger-container);
 
   --color-background: var(--md-sys-color-background);
   --color-on-background: var(--md-sys-color-on-background);
-  
   --color-surface: var(--md-sys-color-surface);
   --color-on-surface: var(--md-sys-color-on-surface);
   --color-surface-variant: var(--md-sys-color-surface-variant);
   --color-on-surface-variant: var(--md-sys-color-on-surface-variant);
+  --color-surface-dim: var(--md-sys-color-surface-dim);
+  --color-surface-bright: var(--md-sys-color-surface-bright);
+  --color-surface-container-lowest: var(--md-sys-color-surface-container-lowest);
+  --color-surface-container-low: var(--md-sys-color-surface-container-low);
+  --color-surface-container: var(--md-sys-color-surface-container);
+  --color-surface-container-high: var(--md-sys-color-surface-container-high);
+  --color-surface-container-highest: var(--md-sys-color-surface-container-highest);
+
   --color-outline: var(--md-sys-color-outline);
   --color-outline-variant: var(--md-sys-color-outline-variant);
 
-  /* Animation Tokens */
-  --animate-fade-in: fade-in 0.3s cubic-bezier(0.2, 0.0, 0, 1.0);
-  --animate-scale-in: scale-in 0.3s cubic-bezier(0.2, 0.0, 0, 1.0);
-  --animate-slide-up: slide-up 0.4s cubic-bezier(0.2, 0.0, 0, 1.0);
+  --color-inverse-surface: var(--md-sys-color-inverse-surface);
+  --color-inverse-on-surface: var(--md-sys-color-inverse-on-surface);
+  --color-inverse-primary: var(--md-sys-color-inverse-primary);
+
+  --color-success: var(--md-sys-color-success);
+  --color-on-success: var(--md-sys-color-on-success);
+  --color-success-container: var(--md-sys-color-success-container);
+  --color-on-success-container: var(--md-sys-color-on-success-container);
+  --color-warning: var(--md-sys-color-warning);
+  --color-on-warning: var(--md-sys-color-on-warning);
+  --color-warning-container: var(--md-sys-color-warning-container);
+  --color-on-warning-container: var(--md-sys-color-on-warning-container);
+  --color-info: var(--md-sys-color-info);
+  --color-on-info: var(--md-sys-color-on-info);
+  --color-info-container: var(--md-sys-color-info-container);
+  --color-on-info-container: var(--md-sys-color-on-info-container);
+  --color-ring-offset: var(--md-sys-color-ring-offset);
+
+  /* 圓角：收斂成四種。lg / md 併入 xl，讓散落各處的寫法自動對齊 */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.75rem;   /* 12px：輸入框、小控制項 */
+  --radius-2xl: 1rem;     /* 16px：卡片內的區塊、圖示磚 */
+  --radius-3xl: 1.375rem; /* 22px：卡片、面板、對話框 */
+
+  /* 字體：Apple 裝置用 SF + 蘋方，其他平台用 Noto Sans TC / 微軟正黑體 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC",
+    "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", system-ui, sans-serif;
+
+  --animate-fade-in: fade-in var(--dur-panel) var(--ease-standard);
+  --animate-scale-in: scale-in var(--dur-panel) var(--ease-standard);
+  --animate-slide-up: slide-up var(--dur-page) var(--ease-standard);
+  --animate-slide-in-right: slide-in-right var(--dur-control) var(--ease-standard);
+
+  /* 浮動導航膠囊佔用的高度（不含 iOS 安全區） */
+  --spacing-nav-bottom: 5.5rem;
 }
 
-/* Animations */
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* =============================================================================
+   Keyframes
+   ========================================================================== */
+@keyframes fade-in   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scale-in  { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes slide-up  { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade-in-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes slide-in-right { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* =============================================================================
+   基礎
+   ========================================================================== */
+html {
+  min-height: 100dvh;
+  -webkit-text-size-adjust: 100%;
 }
 
-@keyframes scale-in {
-  from { transform: scale(0.92); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-@keyframes slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-/* Base Styles */
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
   background-color: var(--md-sys-color-background);
   color: var(--md-sys-color-on-background);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  font-family: var(--font-sans);
   overflow-x: hidden;
   width: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  text-wrap: pretty;
 }
 
-/* Ripple Effect Utility */
-.ripple {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
+h1, h2, h3, h4 { text-wrap: balance; }
+
+/* 尊重「減少動態效果」 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-.ripple::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-color: currentColor;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
-  z-index: 1;
+/* 安全區（劉海、手勢條）。需要 index.html 的 viewport-fit=cover 才會生效。
+   放在 utilities 層：未分層的話會無條件蓋掉同元素上的 px-4、pl-6 之類的設定 ——
+   頂欄的 logo 就曾因此貼齊螢幕邊緣。 */
+@layer utilities {
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+  .pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+  .mb-safe { margin-bottom: env(safe-area-inset-bottom, 0px); }
+  .inset-x-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
 }
 
-.ripple:hover::after {
-  opacity: var(--md-sys-state-hover);
+/* 捲軸 */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-sys-color-outline-variant) transparent;
 }
-
-.ripple:active::after {
-  opacity: var(--md-sys-state-pressed);
+.custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--md-sys-color-outline-variant);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
+.scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-/* Elevation Utilities */
-.elevation-1 { box-shadow: var(--md-sys-elevation-1); }
-.elevation-2 { box-shadow: var(--md-sys-elevation-2); }
-.elevation-3 { box-shadow: var(--md-sys-elevation-3); }
-.elevation-4 { box-shadow: var(--md-sys-elevation-4); }
-.elevation-5 { box-shadow: var(--md-sys-elevation-5); }
-
-/* Transition Helpers */
-.transition-standard {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-  transition-timing-function: cubic-bezier(0.2, 0.0, 0, 1.0); /* M3 Standard Easing */
-  transition-duration: 300ms;
+/* 行動版導航項目過多時的橫向捲動 */
+.nav-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
 }
-
-@layer components {
-  .type-display-large { @apply text-5xl font-normal leading-tight; }
-  .type-display-medium { @apply text-4xl font-normal leading-tight; }
-  .type-display-small { @apply text-3xl font-normal leading-tight; }
-
-  .type-headline-large { @apply text-3xl font-normal leading-tight; }
-  .type-headline-medium { @apply text-2xl font-normal leading-tight; }
-  .type-headline-small { @apply text-xl font-normal leading-tight; }
-
-  .type-title-large { @apply text-xl font-medium leading-normal; }
-  .type-title-medium { @apply text-base font-medium leading-normal tracking-wide; }
-  .type-title-small { @apply text-sm font-medium leading-normal tracking-wide; }
-
-  .type-body-large { @apply text-base font-normal leading-normal tracking-wide; }
-  .type-body-medium { @apply text-sm font-normal leading-normal tracking-wide; }
-  .type-body-small { @apply text-xs font-normal leading-normal tracking-wide; }
-
-  .type-label-large { @apply text-sm font-medium leading-normal tracking-wide; }
-  .type-label-medium { @apply text-xs font-medium leading-normal tracking-wide; }
-  .type-label-small { @apply text-[11px] font-medium leading-normal tracking-wide; }
-}
+.nav-scroll::-webkit-scrollbar { display: none; }
+.nav-scroll > * { scroll-snap-align: center; }

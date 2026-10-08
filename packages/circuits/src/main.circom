@@ -1,7 +1,7 @@
 pragma circom 2.0.0;
 
-// 引入你剛剛寫好的乾淨版 vote.circom
 include "vote.circom";
 
-// 實體化電路 (注意：因為我們把 public input 拿掉了，所以這裡直接宣告就好)
-component main = Vote();
+// electionId 與 voteHash 必須明確宣告為 public，
+// 它們才會進入 publicSignals 並被納入驗證等式。
+component main {public [electionId, voteHash]} = Vote();

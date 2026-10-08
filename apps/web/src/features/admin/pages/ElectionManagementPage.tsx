@@ -1,17 +1,24 @@
 import { useState } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/hooks/useAuth';
-import { Button } from '../../../components/m3/Button';
-import { Card } from '../../../components/m3/Card';
+import { Button, ButtonLink } from '../../../components/m3/Button';
 import { Dialog } from '../../../components/m3/Dialog';
 import { TextField } from '../../../components/m3/TextField';
 import { AdminHeader } from '../components/AdminHeader';
 import { api } from '../../auth/services/auth.api';
 import { API_ENDPOINTS } from '../../../lib/constants';
 import { ElectionType, type Election, UserRole } from '@savote/shared-types';
-import { Plus, CalendarPlus, Link as LinkIcon, Users, Trash2, Edit2, Search, Calendar, Clock, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Plus, CalendarPlus, Link as LinkIcon, Users, Trash2, Edit2, Search, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useToastStore } from '../../../stores/toastStore';
+import { formatDateTime } from '../../../lib/datetime';
+import { Section } from '../../../components/ui/Section';
+import { SearchField } from '../../../components/ui/SearchField';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { StatusBadge, type StatusTone } from '../../../components/ui/StatusBadge';
+import { IconButton } from '../../../components/ui/IconButton';
+import { SegmentedControl } from '../../../components/ui/SegmentedControl';
+import { Notice } from '../../../components/ui/Notice';
 
 interface ExtendedElection extends Election {
     description?: string;
@@ -27,6 +34,9 @@ export function ElectionManagementPage() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const { addToast } = useToastStore();
+    // 刪除選舉會連同選票一起 cascade 刪除，是不可逆的高風險操作，
+    // 用正式的確認對話框而不是 window.confirm
+    const [deleteTarget, setDeleteTarget] = useState<Election | null>(null);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingElection, setEditingElection] = useState<ExtendedElection | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -166,361 +176,183 @@ export function ElectionManagementPage() {
         });
     };
 
-    const getStatusDisplay = (election: Election) => {
+    const getStatus = (election: Election): { label: string; tone: StatusTone; started: boolean } => {
         const now = new Date();
         const start = election.startTime ? new Date(election.startTime) : null;
         const end = election.endTime ? new Date(election.endTime) : null;
-
-        if (!start || !end) {
-            return { label: '設定未完成', color: 'bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-400', dot: 'bg-gray-500' };
-        }
-
-        if (now < start) {
-            return {
-                label: '即將開始',
-                color: 'bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-900/40 dark:text-blue-100 dark:border-blue-700',
-                dot: 'bg-blue-600 dark:bg-blue-400'
-            };
-        }
-        if (now >= start && now <= end) {
-            return {
-                label: '投票進行中',
-                color: 'bg-green-100 text-green-900 border-green-300 dark:bg-green-900/40 dark:text-green-100 dark:border-green-700',
-                dot: 'bg-green-600 dark:bg-green-400 animate-pulse'
-            };
-        }
-        if (now > end) {
-            return {
-                label: '已結束',
-                color: 'bg-gray-200 text-gray-900 border-gray-400 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600',
-                dot: 'bg-gray-600'
-            };
-        }
-
-        return { label: '狀態未知', color: 'bg-gray-100 text-gray-500 border-gray-200', dot: 'bg-gray-400' };
+        if (!start || !end) return { label: '設定未完成', tone: 'neutral', started: false };
+        if (now < start) return { label: '即將開始', tone: 'warning', started: false };
+        if (now <= end) return { label: '投票進行中', tone: 'success', started: true };
+        return { label: '已結束', tone: 'neutral', started: true };
     };
 
     if (user && !isAdmin) return <Navigate to="/" replace />;
     if (!user) return null;
 
-    const filteredElections = (elections as ExtendedElection[]).filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const term = searchTerm.trim().toLowerCase();
+    const filteredElections = (elections as ExtendedElection[]).filter(e => e.name.toLowerCase().includes(term));
 
     return (
-        <div className="space-y-8 pb-24 animate-fade-in">
+        <div className="space-y-6 pb-8">
             <AdminHeader
                 title="選舉管理"
-                subtitle="在此建立與修改學生會各項選舉活動，狀態將隨時間自動判定"
+                subtitle="建立與修改各項選舉。狀態會依投票時間自動判定；選舉開始後即不可修改或刪除。"
                 actions={
-                    <Button
-                        variant="filled"
-                        icon={<Plus className="w-5 h-5" />}
-                        onClick={handleOpenCreate}
-                        className="h-12 px-6 rounded-xl shadow-lg shadow-[var(--color-primary)]/20"
-                    >
+                    <Button icon={<Plus className="h-5 w-5" />} onClick={handleOpenCreate}>
                         建立選舉
                     </Button>
                 }
             />
 
-            <div className="space-y-6">
-                {/* Search Bar & Action - M3 Search Style */}
-                <div className="relative group w-full">
-                    <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-                        <Search className="w-5 h-5 text-[var(--color-outline)] group-focus-within:text-[var(--color-primary)] transition-colors" />
-                    </div>
-                    <input
-                        type="text"
-                        placeholder="搜尋選舉名稱..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-14 pr-6 h-14 bg-[var(--color-surface-container-high)] border border-transparent focus:border-[var(--color-primary)]/30 focus:bg-[var(--color-surface)] rounded-xl text-[var(--color-on-surface)] transition-all duration-300 elevation-1 focus:elevation-2 outline-none"
-                    />
-                </div>
+            <Section title="所有選舉" description={isLoading ? undefined : `共 ${elections.length} 場`} card={false}>
+                {elections.length > 0 && (
+                    <SearchField value={searchTerm} onChange={setSearchTerm} placeholder="搜尋選舉名稱" />
+                )}
 
                 {isLoading ? (
-                    <div className="grid gap-4">
-                        {[1, 2, 3].map(i => <div key={i} className="h-24 bg-[var(--color-surface-container)] rounded-xl animate-pulse" />)}
+                    <div className="space-y-px overflow-hidden rounded-3xl">
+                        {[1, 2, 3].map(i => <div key={i} className="skeleton h-24 rounded-none" />)}
                     </div>
                 ) : elections.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-24 bg-[var(--color-surface-container-low)] rounded-xl border-2 border-dashed border-[var(--color-outline-variant)]">
-                        <div className="p-6 rounded-full bg-[var(--color-surface-container-high)] mb-6">
-                            <CalendarPlus className="w-12 h-12 text-[var(--color-outline)] opacity-40" />
-                        </div>
-                        <p className="text-xl font-bold text-[var(--color-on-surface-variant)] opacity-60">尚無任何選舉項目</p>
-                        <Button variant="text" onClick={handleOpenCreate} className="mt-4 font-bold">
-                            點擊此處建立第一筆選舉
-                        </Button>
-                    </div>
+                    <EmptyState
+                        icon={CalendarPlus}
+                        title="尚未建立任何選舉"
+                        description="建立選舉後，即可設定候選人與匯入選舉人名冊。"
+                        action={<Button variant="tonal" icon={<Plus className="h-4 w-4" />} onClick={handleOpenCreate}>建立第一場選舉</Button>}
+                    />
+                ) : filteredElections.length === 0 ? (
+                    <EmptyState icon={Search} title="沒有符合的選舉" description="試試其他關鍵字，或清除搜尋條件。" />
                 ) : (
-                    <>
-                        {/* Desktop Table View */}
-                        <div className="hidden md:block bg-[var(--color-surface-container-low)] rounded-xl border border-[var(--color-outline-variant)]/30 overflow-hidden elevation-1 transition-standard hover:elevation-2">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-[var(--color-surface-container-high)]/50 border-b border-[var(--color-outline-variant)]/30">
-                                            <th className="px-8 py-5 type-label-large text-[var(--color-on-surface-variant)] opacity-70">選舉資訊</th>
-                                            <th className="px-6 py-5 type-label-large text-[var(--color-on-surface-variant)] opacity-70">即時狀態</th>
-                                            <th className="px-6 py-5 type-label-large text-[var(--color-on-surface-variant)] opacity-70 hidden lg:table-cell">時間排程</th>
-                                            <th className="px-8 py-5 type-label-large text-[var(--color-on-surface-variant)] opacity-70 text-right">管理操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[var(--color-outline-variant)]/20">
-                                        {filteredElections.map((election: ExtendedElection) => {
-                                            const status = getStatusDisplay(election);
-                                            return (
-                                                <tr key={election.id} className="group hover:bg-[var(--color-surface)] transition-all duration-300">
-                                                    <td className="px-8 py-6">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-12 h-12 rounded-xl bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)] flex items-center justify-center font-bold text-lg elevation-1 group-hover:scale-110 transition-transform">
-                                                                {election.name.charAt(0)}
-                                                            </div>
-                                                            <div>
-                                                                <div className="font-bold text-[var(--color-on-surface)] text-lg mb-1">{election.name}</div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="px-2 py-0.5 rounded-md bg-[var(--color-secondary-container)] text-[var(--color-on-secondary-container)] text-[10px] font-bold uppercase tracking-wider">
-                                                                        {ELECTION_TYPE_LABELS[election.type] || election.type}
-                                                                    </span>
-                                                                    {election.description && (
-                                                                        <span className="text-xs text-[var(--color-on-surface-variant)] opacity-60 line-clamp-1 max-w-[150px]">
-                                                                            {election.description}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-6">
-                                                        <div className={cn(
-                                                            "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-standard border",
-                                                            status.color
-                                                        )}>
-                                                            <div className={cn("w-2 h-2 rounded-full", status.dot)} />
-                                                            {status.label}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-6 hidden lg:table-cell">
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-on-surface-variant)]">
-                                                                <Calendar className="w-3.5 h-3.5 opacity-50" />
-                                                                <span>{election.startTime ? new Date(election.startTime).toLocaleDateString() : '-'}</span>
-                                                                <Clock className="w-3.5 h-3.5 ml-1 opacity-50" />
-                                                                <span>{election.startTime ? new Date(election.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-primary)]">
-                                                                <ArrowRight className="w-3.5 h-3.5 opacity-50" />
-                                                                <span>{election.endTime ? new Date(election.endTime).toLocaleDateString() : '-'}</span>
-                                                                <Clock className="w-3.5 h-3.5 ml-1 opacity-50" />
-                                                                <span>{election.endTime ? new Date(election.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-8 py-6 text-right">
-                                                        <div className="flex justify-end items-center gap-2">
-                                                            <Link to={`/admin/elections/${election.id}/candidates`}>
-                                                                <Button variant="tonal" size="sm" className="rounded-xl px-4 font-bold" icon={<Users className="w-4 h-4" />}>
-                                                                    管理候選人
-                                                                </Button>
-                                                            </Link>
-
-
-                                                            {/* Election Visible with restrict*/}
-                                                            {(!election.startTime || new Date() < new Date(election.startTime) || (election.endTime && new Date() > new Date(election.endTime))) && (
-                                                                <>
-                                                                    <div className="h-8 w-[1px] bg-[var(--color-outline-variant)]/30 mx-1" />
-                                                                    {election.isVisible ? (
-                                                                        <button
-                                                                            onClick={() => handleToggleVisibility(election, false)}
-                                                                            className="w-10 h-10 rounded-xl hover:bg-[var(--color-danger-container)] hover:text-[var(--color-on-error-container)] text-[var(--color-on-surface-variant)] transition-all flex items-center justify-center"
-                                                                            title="目前為公開，點擊設為隱藏"
-                                                                        >
-                                                                            <Eye className="w-4 h-4" />
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button
-                                                                            onClick={() => handleToggleVisibility(election, true)}
-                                                                            className="w-10 h-10 rounded-xl hover:bg-[var(--color-primary-container)] hover:text-[var(--color-on-primary-container)] text-[var(--color-on-surface-variant)] transition-all flex items-center justify-center"
-                                                                            title="目前為隱藏，點擊設為公開"
-                                                                        >
-                                                                            <EyeOff className="w-4 h-4" />
-                                                                        </button>
-                                                                    )}
-                                                                </>
-                                                            )}
-
-
-                                                            {/* Actions restricted after start */}
-                                                            {(!election.startTime || new Date() < new Date(election.startTime)) && (
-                                                                <>
-                                                                    <button
-                                                                        onClick={() => handleOpenEdit(election)}
-                                                                        className="w-10 h-10 rounded-xl hover:bg-[var(--color-primary-container)] hover:text-[var(--color-on-primary-container)] text-[var(--color-on-surface-variant)] transition-all flex items-center justify-center"
-                                                                        title="編輯選舉"
-                                                                    >
-                                                                        <Edit2 className="w-4 h-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => { if (window.confirm('確定要刪除此選舉嗎？')) deleteMutation.mutate(election.id); }}
-                                                                        className="w-10 h-10 rounded-xl hover:bg-[var(--color-error-container)] hover:text-[var(--color-on-error-container)] text-[var(--color-error)] transition-all flex items-center justify-center"
-                                                                        title="刪除選舉"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* Mobile Card View */}
-                        <div className="grid gap-4 md:hidden">
-                            {filteredElections.map((election: ExtendedElection) => {
-                                const status = getStatusDisplay(election);
-                                return (
-                                    <Card key={election.id} className="p-6 rounded-xl border border-[var(--color-outline-variant)]/30 bg-[var(--color-surface-container-low)] elevation-1 overflow-hidden">
-                                        <div className="flex flex-col gap-4 mb-4">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)] flex items-center justify-center font-bold text-lg shrink-0">
-                                                        {election.name.charAt(0)}
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <h3 className="font-bold text-[var(--color-on-surface)] text-lg truncate leading-tight">{election.name}</h3>
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary)] opacity-70">
-                                                            {ELECTION_TYPE_LABELS[election.type] || election.type}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className={cn(
-                                                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border shrink-0",
-                                                    status.color
-                                                )}>
-                                                    <div className={cn("w-1.5 h-1.5 rounded-full", status.dot)} />
-                                                    {status.label}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3 mb-6 bg-[var(--color-surface-container-high)]/50 p-4 rounded-xl">
-                                            <div className="flex items-center gap-3 text-xs font-medium text-[var(--color-on-surface-variant)]">
-                                                <Calendar className="w-3.5 h-3.5 opacity-50" />
-                                                <span>開始：{election.startTime ? new Date(election.startTime).toLocaleString() : '-'}</span>
-                                            </div>
-                                            <div className="flex items-center gap-3 text-xs font-medium text-[var(--color-primary)]">
-                                                <ArrowRight className="w-3.5 h-3.5 opacity-50" />
-                                                <span>結束：{election.endTime ? new Date(election.endTime).toLocaleString() : '-'}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-wrap items-center gap-2 pt-2">
-                                            <Link to={`/admin/elections/${election.id}/candidates`} className="flex-1 min-w-[120px]">
-                                                <Button variant="tonal" size="sm" className="w-full rounded-xl font-bold" icon={<Users className="w-4 h-4" />}>
-                                                    候選人
-                                                </Button>
-                                            </Link>
-
-                                            {(!election.startTime || new Date() < new Date(election.startTime)) && (
-                                                <div className="flex gap-2 shrink-0">
-                                                    <Button
-                                                        variant="outlined"
-                                                        size="sm"
-                                                        onClick={() => handleOpenEdit(election)}
-                                                        className="w-10 h-10 p-0 rounded-xl"
-                                                        icon={<Edit2 className="w-4 h-4" />}
-                                                    />
-                                                    <Button
-                                                        variant="outlined"
-                                                        size="sm"
-                                                        onClick={() => { if (window.confirm('確定要刪除此選舉嗎？')) deleteMutation.mutate(election.id); }}
-                                                        className="w-10 h-10 p-0 rounded-xl text-[var(--color-error)] border-[var(--color-error)]/30"
-                                                        icon={<Trash2 className="w-4 h-4" />}
-                                                    />
-                                                </div>
+                    <ul className="list-none divide-y divide-[var(--color-outline-variant)] overflow-hidden rounded-3xl bg-[var(--color-surface-container-lowest)] p-0">
+                        {filteredElections.map((election) => {
+                            const status = getStatus(election);
+                            // 選舉一旦開始就不可修改。保留按鈕並停用，由 aria-label 與 title 說明原因，
+                            // 而不是直接拿掉讓管理員以為按鈕不見了。
+                            const lockReason = `選舉已於 ${formatDateTime(election.startTime)} 開始，依選務規則不可`;
+                            // 進行中的選舉不可切換公開狀態
+                            const canToggleVisibility = !(status.started && status.label === '投票進行中');
+                            return (
+                                <li key={election.id} className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:gap-5 md:px-5">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <StatusBadge tone={status.tone} pulse={status.tone === 'success'}>{status.label}</StatusBadge>
+                                            {!election.isVisible && (
+                                                <StatusBadge tone="neutral" icon={EyeOff}>未公開</StatusBadge>
                                             )}
+                                            <span className="text-[13px] text-[var(--color-on-surface-variant)]">
+                                                {ELECTION_TYPE_LABELS[election.type] || election.type}
+                                            </span>
                                         </div>
-                                    </Card>
-                                );
-                            })}
-                        </div>
-                    </>
+                                        <h3 className="type-title-medium mt-2 text-[var(--color-on-surface)]">{election.name}</h3>
+                                        <p className="tabular mt-1 flex flex-wrap items-center gap-x-1.5 text-[13px] text-[var(--color-on-surface-variant)]">
+                                            <span>{formatDateTime(election.startTime)}</span>
+                                            <ArrowRight className="h-3.5 w-3.5" aria-label="至" />
+                                            <span>{formatDateTime(election.endTime)}</span>
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                        <ButtonLink
+                                            to={`/admin/elections/${election.id}/candidates`}
+                                            variant="tonal"
+                                            size="sm"
+                                            className="mr-auto md:mr-2"
+                                            icon={<Users className="h-4 w-4" />}
+                                        >
+                                            候選人
+                                        </ButtonLink>
+                                        <IconButton
+                                            disabled={!canToggleVisibility || toggleVisibilityMutation.isPending}
+                                            onClick={() => handleToggleVisibility(election, !election.isVisible)}
+                                            aria-pressed={election.isVisible}
+                                            aria-label={election.isVisible
+                                                ? `「${election.name}」目前對選民公開，點擊改為隱藏`
+                                                : `「${election.name}」目前對選民隱藏，點擊改為公開`}
+                                            title={election.isVisible ? '公開中（點擊隱藏）' : '已隱藏（點擊公開）'}
+                                        >
+                                            {election.isVisible ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}
+                                        </IconButton>
+                                        <IconButton
+                                            disabled={status.started}
+                                            onClick={() => handleOpenEdit(election)}
+                                            title={status.started ? `${lockReason}修改` : '編輯'}
+                                            aria-label={status.started ? `編輯「${election.name}」：${lockReason}修改` : `編輯「${election.name}」`}
+                                        >
+                                            <Edit2 aria-hidden="true" />
+                                        </IconButton>
+                                        <IconButton
+                                            tone="error"
+                                            disabled={status.started}
+                                            onClick={() => setDeleteTarget(election)}
+                                            title={status.started ? `${lockReason}刪除` : '刪除'}
+                                            aria-label={status.started ? `刪除「${election.name}」：${lockReason}刪除` : `刪除「${election.name}」`}
+                                        >
+                                            <Trash2 aria-hidden="true" />
+                                        </IconButton>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
                 )}
-            </div>
+            </Section>
 
             {/* Create/Edit Dialog */}
             <Dialog
                 open={isCreateOpen}
                 onClose={() => setIsCreateOpen(false)}
                 title={editingElection ? '編輯選舉' : '建立選舉'}
-                className="w-full max-w-2xl select-none"
+                className="w-full max-w-2xl"
                 actions={
                     <>
-                        <Button variant="text" onClick={() => setIsCreateOpen(false)} className="font-bold">
+                        <Button variant="text" color="secondary" onClick={() => setIsCreateOpen(false)}>
                             取消
                         </Button>
                         <Button
                             onClick={handleSubmit}
                             disabled={createMutation.isPending || updateMutation.isPending}
                             loading={createMutation.isPending || updateMutation.isPending}
-                            variant="filled"
-                            className="px-8 rounded-xl font-bold"
                         >
-                            確認儲存
+                            {editingElection ? '儲存變更' : '建立選舉'}
                         </Button>
                     </>
                 }
             >
-                <form onSubmit={handleSubmit} className="py-4 space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <form onSubmit={handleSubmit}>
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                         <TextField
-                            label="選舉名稱 (必填)"
+                            label="選舉名稱"
                             value={formData.name}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
                             required
                             className="md:col-span-2"
                         />
 
-                        <div className="flex flex-col gap-1 md:col-span-2">
-                            <label className="text-sm font-bold text-[var(--color-on-surface-variant)] px-1 mb-2">
-                                選舉種類 <span className="text-red-500">*</span>
-                            </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                {[
-                                    { id: ElectionType.PRESIDENTIAL, label: '正副會長選舉' },
-                                    { id: ElectionType.DISTRICT_COUNCILOR, label: '選區議員選舉' },
-                                    { id: ElectionType.AT_LARGE_COUNCILOR, label: '不分區議員選舉' }
-                                ].map((type) => (
-                                    <button
-                                        key={type.id}
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, type: type.id as ElectionType })}
-                                        className={cn(
-                                            "px-4 py-3 rounded-xl border-2 text-sm font-bold transition-all",
-                                            formData.type === type.id
-                                                ? "bg-[var(--color-primary-container)] border-[var(--color-primary)] text-[var(--color-on-primary-container)]"
-                                                : "bg-[var(--color-surface)] border-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary)]/50"
-                                        )}
-                                    >
-                                        {type.label}
-                                    </button>
-                                ))}
-                            </div>
+                        <div className="space-y-1.5 md:col-span-2">
+                            <p className="text-sm font-semibold text-[var(--color-on-surface)]">
+                                選舉種類 <span className="text-[var(--color-error)]">*</span>
+                            </p>
+                            <SegmentedControl
+                                label="選舉種類"
+                                value={formData.type}
+                                onChange={(type) => setFormData({ ...formData, type })}
+                                options={[
+                                    { value: ElectionType.PRESIDENTIAL, label: '正副會長' },
+                                    { value: ElectionType.DISTRICT_COUNCILOR, label: '選區議員' },
+                                    { value: ElectionType.AT_LARGE_COUNCILOR, label: '不分區議員' },
+                                ]}
+                            />
                         </div>
 
                         <TextField
-                            label="開始投票時間 (必填)"
+                            label="開始投票時間"
                             type="datetime-local"
                             value={formData.startTime}
                             onChange={e => setFormData({ ...formData, startTime: e.target.value })}
                             required
                         />
                         <TextField
-                            label="結束投票時間 (必填)"
+                            label="結束投票時間"
                             type="datetime-local"
                             value={formData.endTime}
                             onChange={e => setFormData({ ...formData, endTime: e.target.value })}
@@ -528,7 +360,7 @@ export function ElectionManagementPage() {
                         />
 
                         <TextField
-                            label="選舉公報檔案連結"
+                            label="選舉公報連結（選填）"
                             value={formData.bulletinUrl}
                             onChange={e => setFormData({ ...formData, bulletinUrl: e.target.value })}
                             placeholder="請輸入 Google Drive 共享連結"
@@ -537,7 +369,7 @@ export function ElectionManagementPage() {
                         />
 
                         <TextField
-                            label="選舉詳細描述 (選填)"
+                            label="選舉說明（選填）"
                             value={formData.description}
                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                             multiline
@@ -547,10 +379,87 @@ export function ElectionManagementPage() {
                     </div>
                 </form>
             </Dialog>
+
+            {/* 刪除確認：這是不可逆操作，而且會連同該場選舉的所有選票一起刪除，
+                所以要求管理員親手輸入選舉名稱才能執行，而不是按一下就過。 */}
+            <DeleteElectionDialog
+                election={deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={(id) => {
+                    deleteMutation.mutate(id);
+                    setDeleteTarget(null);
+                }}
+                isPending={deleteMutation.isPending}
+            />
         </div>
     );
 }
 
-function cn(...classes: any[]) {
-    return classes.filter(Boolean).join(' ');
+function DeleteElectionDialog({
+    election,
+    onClose,
+    onConfirm,
+    isPending,
+}: {
+    election: Election | null;
+    onClose: () => void;
+    onConfirm: (id: string) => void;
+    isPending: boolean;
+}) {
+    const [typed, setTyped] = useState('');
+
+    // 換一筆目標就把輸入清掉，避免沿用上一次打的名稱
+    const confirmed = Boolean(election) && typed.trim() === election?.name.trim();
+
+    return (
+        <Dialog
+            open={Boolean(election)}
+            onClose={() => {
+                setTyped('');
+                onClose();
+            }}
+            title="刪除選舉"
+            actions={
+                <>
+                    <Button
+                        variant="text"
+                        color="secondary"
+                        onClick={() => {
+                            setTyped('');
+                            onClose();
+                        }}
+                    >
+                        取消
+                    </Button>
+                    <Button
+                        color="error"
+                        disabled={!confirmed || isPending}
+                        loading={isPending}
+                        onClick={() => {
+                            if (election && confirmed) {
+                                setTyped('');
+                                onConfirm(election.id);
+                            }
+                        }}
+                    >
+                        永久刪除
+                    </Button>
+                </>
+            }
+        >
+            <div className="space-y-4">
+                <Notice tone="error" title="此操作無法復原">
+                    該場選舉的候選人、選舉人名冊與所有已投選票都會一併刪除。
+                </Notice>
+
+                <TextField
+                    label="請輸入選舉名稱以確認"
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    autoComplete="off"
+                    helperText={election ? `要刪除的是：${election.name}` : undefined}
+                />
+            </div>
+        </Dialog>
+    );
 }

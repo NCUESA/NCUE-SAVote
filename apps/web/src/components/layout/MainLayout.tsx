@@ -17,7 +17,6 @@ import {
   Coins,
   FileText
 } from "lucide-react";
-import { Button } from "../m3/Button";
 import { InstallPrompt } from "../InstallPrompt";
 import { UserRole } from "@savote/shared-types";
 import { useToastStore } from "../../stores/toastStore";
@@ -133,78 +132,104 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     });
   }
 
+  // 頂欄右側的動作一律是同一種 40px 圓形圖示鈕。原本是四種長相：
+  // 使用者膠囊、主題圖示鈕、圖示＋文字的「回首頁」、紅字的「登出」。
+  const iconButton =
+    "focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-on-surface)]/[0.06] text-[var(--color-on-surface)] transition-[background-color,transform] duration-[var(--dur-micro)] hover:bg-[var(--color-on-surface)]/[0.1] active:scale-95";
+
+  const initial = (user?.name || "").trim().charAt(0) || "我";
+  const roleLabel =
+    user?.role === UserRole.SUPER_ADMIN
+      ? "超級管理員"
+      : user?.role === UserRole.ADMIN
+        ? "管理員"
+        : "選舉人";
+
   const TopBar = () => (
-    <header className="fixed top-0 left-0 right-0 h-20 bg-[var(--color-surface)]/80 backdrop-blur-xl z-40 border-b border-[var(--color-outline-variant)]/20 px-4 md:px-8 flex items-center justify-between transition-colors duration-500 md:pl-[104px]">
+    <header className="glass fixed inset-x-0 top-0 z-40 flex h-[calc(4rem+env(safe-area-inset-top,0px))] items-center justify-between gap-3 rounded-none border-x-0 border-t-0 pt-[env(safe-area-inset-top,0px)] pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] md:h-[72px] md:pl-6 md:pr-6">
       <Link
-        to={isAdmin ? "/admin" : "/"}
-        className="flex items-center gap-4 animate-fade-in hover:opacity-80 transition-opacity"
+        to={isAdmin && isAdminRoute ? "/admin" : "/"}
+        className="focus-ring flex min-w-0 items-center gap-3 rounded-2xl"
       >
         <img
           src="/sa_logo.webp"
-          alt="Logo"
-          className="w-10 h-10 md:w-12 md:h-12 object-contain"
+          alt=""
+          width={40}
+          height={40}
+          className="h-9 w-9 shrink-0 object-contain md:h-10 md:w-10"
         />
-        <div className="flex flex-col">
-          <h1 className="text-base md:text-lg font-bold text-[var(--color-on-surface)] leading-tight tracking-tight">
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-[15px] font-bold leading-tight text-[var(--color-on-surface)] md:text-base">
             國立彰化師範大學學生會
-          </h1>
-          <span className="text-[10px] md:text-[11px] text-[var(--color-primary)] font-semibold tracking-[0.1em] uppercase opacity-90">
-            NCUE Student Association
           </span>
-        </div>
+          <span className="hidden truncate text-xs text-[var(--color-on-surface-variant)] sm:block">
+            {isAdminRoute ? "選務管理後台" : "學生選舉系統"}
+          </span>
+        </span>
       </Link>
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2">
         {user && (
-          <div className="hidden lg:flex items-center gap-3 px-4 py-2 rounded-full bg-[var(--color-surface-container-low)] border border-[var(--color-outline-variant)]/30">
-            <div className="flex flex-col items-end">
-              <span className="text-xs font-bold text-[var(--color-on-surface)]">
-                {user.name || "User"}
+          <div className="mr-1 hidden items-center gap-2.5 lg:flex">
+            <span className="flex flex-col items-end leading-tight">
+              <span className="text-sm font-semibold text-[var(--color-on-surface)]">
+                {user.name || "使用者"}
               </span>
-              <span className="text-[10px] text-[var(--color-on-surface-variant)] opacity-70">
-                {user.role}
-              </span>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)] flex items-center justify-center">
-              <User className="w-4 h-4" />
-            </div>
+              <span className="text-xs text-[var(--color-on-surface-variant)]">{roleLabel}</span>
+            </span>
+            <span
+              aria-hidden="true"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary-container)] text-sm font-bold text-[var(--color-on-primary-container)]"
+            >
+              {initial}
+            </span>
           </div>
         )}
-        <div className="flex items-center gap-1">
-          <ThemeToggle />
 
-          {/* 只有 SUPER_ADMIN 才看得到這個切換按鈕 */}
-          {user?.role === 'SUPER_ADMIN' && (
-            <Button
-              variant="text"
-              onClick={() => navigate(isAdminRoute ? '/' : '/admin')}
-              className="ml-1 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10"
-              icon={isAdminRoute ? <Home className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
-            >
-              <span className="hidden sm:inline text-xs font-bold">
-                {isAdminRoute ? '回首頁' : '前往後台'}
-              </span>
-            </Button>
-          )}
+        <ThemeToggle className={iconButton} />
 
-          <Button
-            variant="text"
-            onClick={handleLogout}
-            className="ml-1 text-[var(--color-error)] hover:bg-[var(--color-error)]/10"
-            icon={<LogOut className="w-4 h-4" />}
+        {user?.role === UserRole.SUPER_ADMIN && (
+          <button
+            type="button"
+            onClick={() => navigate(isAdminRoute ? "/" : "/admin")}
+            aria-label={isAdminRoute ? "切換到選舉人首頁" : "切換到管理後台"}
+            title={isAdminRoute ? "選舉人首頁" : "管理後台"}
+            className={iconButton}
           >
-            <span className="hidden sm:inline text-xs font-bold">登出</span>
-          </Button>
-        </div>
+            {isAdminRoute ? (
+              <Home className="h-[18px] w-[18px]" aria-hidden="true" />
+            ) : (
+              <Shield className="h-[18px] w-[18px]" aria-hidden="true" />
+            )}
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          aria-label="登出"
+          title="登出"
+          className={iconButton}
+        >
+          <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
+        </button>
       </div>
     </header>
   );
 
   return (
-    <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-on-surface)] transition-colors duration-500 select-none overflow-x-hidden w-full">
+    <div className="min-h-dvh w-full overflow-x-hidden bg-[var(--color-background)] text-[var(--color-on-surface)]">
+      {/* 鍵盤使用者可直接跳到主內容，不必逐一 Tab 過整個導航 */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-[var(--color-primary)] focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-[var(--color-on-primary)]"
+      >
+        跳至主要內容
+      </a>
       <Navigation
         items={actualNavItems}
         orientation="vertical"
+        label="主要導航"
         onItemClick={(to) => {
           if (to === "/admin/accounts" || to === "/admin/settings") {
             return handleNavClick(UserRole.SUPER_ADMIN);
@@ -214,13 +239,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       />
       <TopBar />
 
-      <main className="pt-24 pb-28 md:pl-[80px] md:pb-12 px-4 md:px-12 max-w-7xl mx-auto min-h-screen relative z-10 animate-fade-in overflow-x-hidden w-full">
+      <main
+        id="main-content"
+        className="relative z-10 mx-auto w-full max-w-7xl animate-fade-in overflow-x-hidden px-4 pt-[calc(4rem+env(safe-area-inset-top,0px)+1.5rem)] pb-[calc(var(--spacing-nav-bottom)+env(safe-area-inset-bottom,0px)+1.5rem)] md:px-10 md:pt-[104px] md:pb-12 md:pl-[112px]"
+      >
         {children || <Outlet />}
       </main>
 
       <Navigation
         items={actualNavItems}
         orientation="horizontal"
+        label="主要導航（行動版）"
         onItemClick={(to) => {
           if (to === "/admin/accounts" || to === "/admin/settings") {
             return handleNavClick(UserRole.SUPER_ADMIN);

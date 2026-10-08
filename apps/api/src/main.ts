@@ -27,6 +27,18 @@ async function bootstrap() {
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
 
   const isProduction = process.env.NODE_ENV === 'production';
+
+  // 原本是 process.env.SESSION_SECRET || 'super-secret-session-key'。
+  // 這個 fallback 字串就寫在公開的原始碼裡 —— 只要正式環境漏設環境變數，
+  // 任何人都能偽造 session cookie，而且不會有任何警告。
+  // OIDC 的 PKCE code_verifier 就存在這個 session 裡。
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (isProduction && (!sessionSecret || sessionSecret.length < 32)) {
+    throw new Error(
+      'SESSION_SECRET 未設定或長度不足 32 字元。正式環境不允許使用預設值，請在 apps/api/.env 設定後再啟動。',
+    );
+  }
+
   console.log(
     `Starting API in ${process.env.NODE_ENV} mode. Secure cookies: ${isProduction}`,
   );
@@ -34,7 +46,7 @@ async function bootstrap() {
   // Session Configuration (Required for Passport-SAML)
   app.use(
     session({
-      secret: process.env.SESSION_SECRET || 'super-secret-session-key',
+      secret: sessionSecret || 'dev-only-insecure-secret',
       resave: false,
       saveUninitialized: false,
       cookie: {
@@ -51,12 +63,15 @@ async function bootstrap() {
   app.use(passport.session());
 
   // Enable CORS
+  // 開發用的 localhost 來源不該出現在正式環境的允許清單裡
+  const allowedOrigins = [
+    process.env.CORS_ORIGIN,
+    'https://sa-election.ncue.edu.tw',
+    ...(isProduction ? [] : ['http://localhost:5173', 'http://127.0.0.1:5190']),
+  ].filter((origin): origin is string => !!origin);
+
   app.enableCors({
-    origin: [
-      process.env.CORS_ORIGIN,
-      'http://localhost:5173',
-      'https://sa-election.ncue.edu.tw',
-    ].filter((origin): origin is string => !!origin),
+    origin: allowedOrigins,
     credentials: true,
   });
 
@@ -68,15 +83,21 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger Setup
-  const config = new DocumentBuilder()
-    .setTitle('SAVote API')
-    .setDescription('The SAVote API description')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('/', app, document);
+  // Swagger
+  //
+  // 原本是 SwaggerModule.setup('/', ...) —— 完整的 API 文件（含每個端點、
+  // 參數與資料結構）無須驗證就掛在網站根目錄上，等於直接給攻擊者一份地圖。
+  // 正式環境關閉；開發環境維持在 /docs 以免佔用根路徑。
+  if (!isProduction) {
+    const config = new DocumentBuilder()
+      .setTitle('SAVote API')
+      .setDescription('The SAVote API description')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('/docs', app, document);
+  }
 
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');

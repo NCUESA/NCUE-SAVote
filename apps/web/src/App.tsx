@@ -40,7 +40,28 @@ const BulletinWrapper = () => {
   return <ElectionBulletinPage />;
 };
 
-const queryClient = new QueryClient();
+/** 路由切換時的載入畫面：原本是空白 div，慢速行動網路下會是一片全白 */
+const RouteFallback = () => (
+  <div
+    role="status"
+    aria-label="載入中"
+    className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-[var(--color-surface)] px-6"
+  >
+    <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-[var(--color-outline-variant)] border-t-[var(--color-primary)]" />
+    <p className="text-sm text-[var(--color-on-surface-variant)]">載入中…</p>
+  </div>
+);
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // 選舉資料會隨時間變動（開始/結束），但不需要每次聚焦視窗就重抓
+      staleTime: 30_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function App() {
   return (
@@ -48,12 +69,13 @@ function App() {
       <ThemeProvider>
         <ToastContainer />
         <BrowserRouter>
-          <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-[var(--color-surface)]" />}>
+          <Suspense fallback={<RouteFallback />}>
             <Routes>
               {/* Public Routes */}
               <Route path="/auth/login" element={<LoginPage />} />
               <Route path="/auth/callback" element={<CallbackPage />} />
               <Route path="/auth/error" element={<AuthError />} />
+              <Route path="/auth/unauthorized" element={<AuthError />} />
               <Route path="/info/bulletin" element={<BulletinWrapper />} />
 
               {/* Protected Voter Routes with Persistent Layout */}
@@ -77,8 +99,8 @@ function App() {
                 <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}><AdminSettingsPage /></ProtectedRoute>} />
               </Route>
 
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/admin" replace />} />
+              {/* Fallback：原本指向 /admin，一般選舉人會被丟進無權限的後台並觸發重導向迴圈 */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </BrowserRouter>

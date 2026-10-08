@@ -85,7 +85,7 @@ export const NullifierRecovery = ({ onSuccess, subtitle }: NullifierRecoveryProp
   return (
     <div className="space-y-6" data-testid="nullifier-recovery">
       <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[var(--color-secondary-container)] mb-4 shadow-sm animate-scale-in">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[var(--color-secondary-container)] mb-4 animate-scale-in">
           <KeyRound className="w-8 h-8 text-[var(--color-on-secondary-container)]" />
         </div>
         <h3 className="text-xl font-bold text-[var(--color-on-surface)] mb-2">
@@ -114,6 +114,7 @@ export const NullifierRecovery = ({ onSuccess, subtitle }: NullifierRecoveryProp
                 variant="text"
                 className="h-8 w-8 p-0 min-w-0"
                 onClick={handlePaste}
+                aria-label="從剪貼簿貼上金鑰"
                 title="貼上"
              >
                  <ClipboardPaste className="w-4 h-4" />
@@ -141,6 +142,8 @@ export const NullifierRecovery = ({ onSuccess, subtitle }: NullifierRecoveryProp
                 variant="text"
                 className="h-8 w-8 p-0 min-w-0"
                 onClick={() => setShowSecret(!showSecret)}
+                aria-pressed={showSecret}
+                aria-label={showSecret ? '隱藏金鑰內容' : '顯示金鑰內容'}
              >
                  {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
              </Button>

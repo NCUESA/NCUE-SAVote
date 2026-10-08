@@ -3,45 +3,69 @@ import { useToastStore, ToastType } from '../../stores/toastStore';
 import { CheckCircle2, AlertCircle, Info, X, AlertTriangle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+const ICON: Record<ToastType, React.ElementType> = {
+  success: CheckCircle2,
+  error: AlertCircle,
+  info: Info,
+  warning: AlertTriangle,
+};
+
+const ICON_COLOR: Record<ToastType, string> = {
+  success: 'text-[var(--color-success)]',
+  error: 'text-[var(--color-error)]',
+  info: 'text-[var(--color-info)]',
+  warning: 'text-[var(--color-warning)]',
+};
+
+const LABEL: Record<ToastType, string> = {
+  success: '成功',
+  error: '錯誤',
+  info: '提示',
+  warning: '警告',
+};
+
+/**
+ * 通知
+ *
+ * 與系統其他浮起元素同一套外觀：實心卡片、22px 圓角、浮起陰影。
+ * 狀態靠「圖示形狀＋語意色＋隱藏的文字標籤」三者一起表達。
+ */
 export const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useToastStore();
 
-  const icons: Record<ToastType, React.ReactNode> = {
-    success: <CheckCircle2 className="w-5 h-5 text-green-500" />,
-    error: <AlertCircle className="w-5 h-5 text-red-500" />,
-    info: <Info className="w-5 h-5 text-blue-500" />,
-    warning: <AlertTriangle className="w-5 h-5 text-amber-500" />,
-  };
-
-  const bgColors: Record<ToastType, string> = {
-    success: 'bg-white/70 dark:bg-green-900/40 border-green-500/50 shadow-green-500/20',
-    error: 'bg-white/70 dark:bg-red-900/40 border-red-500/50 shadow-red-500/20',
-    info: 'bg-white/70 dark:bg-blue-900/40 border-blue-500/50 shadow-blue-500/20',
-    warning: 'bg-white/70 dark:bg-amber-900/40 border-amber-500/50 shadow-amber-500/20',
-  };
-
   return (
-    <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 w-full max-w-sm pointer-events-none select-none">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={cn(
-            "pointer-events-auto flex items-center gap-4 p-4 rounded-2xl border shadow-xl animate-slide-in-right backdrop-blur-xl backdrop-saturate-150",
-            bgColors[toast.type]
-          )}
-        >
-          <div className="shrink-0 p-2 rounded-xl bg-white/50 dark:bg-black/20 shadow-sm">{icons[toast.type]}</div>
-          <p className="flex-1 text-sm font-bold text-gray-900 dark:text-white leading-tight">
-            {toast.message}
-          </p>
-          <button
-            onClick={() => removeToast(toast.id)}
-            className="shrink-0 p-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-full transition-colors"
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        'pointer-events-none fixed z-[60] flex flex-col gap-2',
+        'inset-x-3 top-[calc(4rem+env(safe-area-inset-top,0px)+0.5rem)]',
+        'sm:inset-x-auto sm:right-6 sm:top-[88px] sm:w-full sm:max-w-sm',
+      )}
+    >
+      {toasts.map((toast) => {
+        const Icon = ICON[toast.type];
+        return (
+          <div
+            key={toast.id}
+            className="pointer-events-auto flex animate-slide-in-right items-start gap-3 rounded-3xl bg-[var(--color-surface-container-lowest)] py-3 pl-4 pr-2 elevation-4"
           >
-            <X className="w-4 h-4 opacity-60" />
-          </button>
-        </div>
-      ))}
+            <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', ICON_COLOR[toast.type])} aria-hidden="true" />
+            <p className="flex-1 select-text py-0.5 text-[15px] font-medium leading-snug text-[var(--color-on-surface)]">
+              <span className="sr-only">{LABEL[toast.type]}：</span>
+              {toast.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => removeToast(toast.id)}
+              aria-label={`關閉${LABEL[toast.type]}通知`}
+              className="focus-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--color-on-surface-variant)] transition-colors duration-[var(--dur-micro)] hover:bg-[var(--color-on-surface)]/[0.06]"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 };

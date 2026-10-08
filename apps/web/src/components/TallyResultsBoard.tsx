@@ -1,9 +1,12 @@
 // components/TallyResultsBoard.tsx
-import { BarChart3, Trophy, Users, PieChart, CheckCircle2 } from "lucide-react";
-import { Card } from './m3/Card';
-import type { Candidate } from "@savote/shared-types";
+import { BarChart3, Trophy, Gavel, Check } from 'lucide-react';
+import { Section } from './ui/Section';
+import { IconTile } from './ui/IconTile';
+import { EmptyState } from './ui/EmptyState';
+import { StatusBadge } from './ui/StatusBadge';
+import type { Candidate } from '@savote/shared-types';
+import { cn } from '../lib/utils';
 
-// 把你檔案最上面的 VoteServiceTally 介面搬過來，或者從 @savote/shared-types 引入
 export interface VoteServiceTally {
   tally: Record<string, number>;
   totalVotes: number;
@@ -23,203 +26,193 @@ export interface VoteServiceTally {
 export interface AdminSummaryResponse {
   totalVotes: number;
   tally: VoteServiceTally;
-  // election 屬性在這裡圖表用不到，所以可以忽略
 }
 
 interface Props {
   summary: AdminSummaryResponse;
 }
 
-// 幫助合併 className 的小工具
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(' ');
-}
+/** 統計格：數字是主角，標籤退到次要 */
+const Stat = ({
+  label,
+  value,
+  suffix,
+  alert = false,
+}: {
+  label: string;
+  value: string;
+  suffix?: string;
+  alert?: boolean;
+}) => (
+  <div className="bg-[var(--color-surface-container-lowest)] px-5 py-4">
+    <dt className="text-[13px] text-[var(--color-on-surface-variant)]">{label}</dt>
+    <dd className="mt-1 flex items-baseline gap-1">
+      <span
+        className={cn(
+          'tabular text-2xl font-bold leading-none tracking-tight md:text-[28px]',
+          alert ? 'text-[var(--color-error)]' : 'text-[var(--color-on-surface)]',
+        )}
+      >
+        {value}
+      </span>
+      {suffix && <span className="text-[13px] text-[var(--color-on-surface-variant)]">{suffix}</span>}
+    </dd>
+  </div>
+);
+
+const fmt = (n: number) => n.toLocaleString('en-US');
 
 export function TallyResultsBoard({ summary }: Props) {
   if (!summary || !summary.tally) return null;
 
+  const { tally } = summary;
+  const eligible = tally.totalEligibleVoters || 0;
+  const blank = tally.blankVotes || 0;
+  const invalid = tally.invalidVotes || 0;
+
+  // 資料不一致時（例如選舉人名單事後被改動）比率可能超過 100%，夾住避免長條溢出
+  const turnout = eligible > 0 ? Math.min(100, (summary.totalVotes / eligible) * 100) : 0;
+
+  const winnerIds = new Set(
+    [tally.result.winner?.id, ...(tally.result.winners ?? []).map((w) => w.id)].filter(
+      Boolean,
+    ) as string[],
+  );
+
+  // 原本直接對 summary.tally.candidates 呼叫 .sort()，那會就地改動
+  // React Query 的快取陣列 —— 快取資料必須視為唯讀，先複製再排序。
+  const ranked = [...(tally.candidates ?? [])].sort((a, b) => b.voteCount - a.voteCount);
+
   return (
-    <div className="grid gap-8 md:grid-cols-12 animate-slide-up">
-      {/* Statistics Sidebar */}
-      <div className="md:col-span-4 space-y-6">
-        <Card className="p-8 rounded-2xl bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)] border-none elevation-2">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="p-2 bg-[var(--color-on-primary-container)]/10 rounded-xl">
-              <BarChart3 className="w-6 h-6" />
-            </div>
-            <h3 className="type-title-large font-black uppercase tracking-widest">數據統計</h3>
-          </div>
+    <div className="space-y-6">
+      {/* ── 總覽數據 ───────────────────────────────────────────── */}
+      <Section title="計票總覽" card={false}>
+        <div className="overflow-hidden rounded-3xl bg-[var(--color-surface-container-lowest)]">
+          <dl className="grid grid-cols-2 gap-px bg-[var(--color-outline-variant)] lg:grid-cols-4">
+            <Stat label="總投票數" value={fmt(summary.totalVotes)} suffix="票" />
+            <Stat label="合格選舉人數" value={fmt(eligible)} suffix="人" />
+            <Stat label="廢票" value={fmt(blank)} suffix="票" />
+            <Stat label="不合法票" value={fmt(invalid)} suffix="票" alert={invalid > 0} />
+          </dl>
 
-          <div className="space-y-8">
-            <div className="flex flex-col">
-              <span className="text-xs font-bold opacity-60 mb-1">總投票數</span>
-              <div className="flex items-end justify-between">
-                <span className="text-5xl font-black tracking-tighter tabular-nums leading-none">
-                  {summary.totalVotes}
+          {/* 投票率 */}
+          <div className="space-y-2 border-t border-[var(--color-outline-variant)] px-5 py-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[13px] text-[var(--color-on-surface-variant)]">投票參與率</span>
+              <span className="tabular text-[15px] font-semibold text-[var(--color-on-surface)]">
+                {turnout.toFixed(2)}%
+                <span className="ml-2 font-normal text-[var(--color-on-surface-variant)]">
+                  {fmt(summary.totalVotes)} / {fmt(eligible)}
                 </span>
-                <span className="text-sm font-bold opacity-70 mb-1">票</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div className="bg-[var(--color-on-primary-container)]/5 rounded-xl p-3 border border-[var(--color-on-primary-container)]/10 text-[var(--color-on-primary-container)]">
-                <div className="text-[10px] font-black uppercase tracking-wider opacity-60 mb-1">廢票</div>
-                <div className="text-xl font-black tabular-nums">{summary.tally.blankVotes || 0}</div>
-              </div>
-
-              <div className="bg-[var(--color-error-container)] rounded-xl p-3 border border-[var(--color-error)]/20 text-[var(--color-on-error-container)]">
-                <div className="text-[10px] font-black uppercase tracking-wider opacity-80 mb-1">不合法票</div>
-                <div className="text-xl font-black tabular-nums">{summary.tally.invalidVotes || 0}</div>
-              </div>
-            </div>
-
-            <div className="flex flex-col border-t border-[var(--color-on-primary-container)]/10 pt-6">
-              <span className="text-xs font-bold opacity-60 mb-1">合格選舉人數</span>
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 opacity-60" />
-                <span className="text-3xl font-black tabular-nums">
-                  {summary.tally.totalEligibleVoters}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col border-t border-[var(--color-on-primary-container)]/10 pt-6">
-              <span className="text-xs font-bold opacity-60 mb-2">投票參與率</span>
-              <div className="h-4 bg-[var(--color-on-primary-container)]/10 rounded-full overflow-hidden mb-2 border border-[var(--color-on-primary-container)]/10">
-                <div
-                  className="h-full bg-[var(--color-on-primary-container)] rounded-full transition-all duration-1000"
-                  style={{ width: `${(summary.totalVotes / (summary.tally.totalEligibleVoters || 1)) * 100}%` }}
-                />
-              </div>
-              <span className="text-sm font-black text-right opacity-80">
-                {((summary.totalVotes / (summary.tally.totalEligibleVoters || 1)) * 100).toFixed(2)}%
               </span>
             </div>
+            <div
+              role="meter"
+              aria-label="投票參與率"
+              aria-valuenow={Number(turnout.toFixed(2))}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="h-2 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]"
+            >
+              <div
+                className="h-full rounded-full bg-[var(--color-primary)] transition-[width] duration-[var(--dur-page)] ease-[var(--ease-standard)]"
+                style={{ width: `${turnout}%` }}
+              />
+            </div>
           </div>
-        </Card>
+        </div>
+      </Section>
 
-        {/* Result Card */}
-        <Card className="p-8 rounded-2xl bg-[var(--color-surface-container-low)] border border-[var(--color-outline-variant)]/30 elevation-1">
-          <div className="flex items-start gap-4 mb-4">
-            <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-2xl text-amber-600 dark:text-amber-400">
-              <Trophy className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="type-title-medium font-bold text-[var(--color-on-surface)]">勝選條件</h4>
-              <p className="text-xs text-[var(--color-on-surface-variant)] opacity-70">依照「國立彰化師範大學學生會選舉罷免暨推舉自治條例」規定</p>
-            </div>
-          </div>
-          <p className="text-lg font-bold text-[var(--color-on-surface)] leading-relaxed bg-[var(--color-surface-container-high)] p-4 rounded-xl border border-[var(--color-outline-variant)]/30">
-            {summary.tally.result.note || '正在核對中...'}
+      {/* ── 當選認定 ───────────────────────────────────────────── */}
+      <Section
+        title="當選認定"
+        description="依「國立彰化師範大學學生會選舉罷免暨推舉自治條例」規定"
+        bodyClassName="p-0"
+      >
+        <div className="flex items-start gap-3.5 px-5 py-4">
+          <IconTile icon={Gavel} tone="neutral" size="sm" />
+          <p className="pt-1.5 text-[15px] font-semibold leading-relaxed text-[var(--color-on-surface)]">
+            {tally.result.note || '計票結果尚在核對中'}
           </p>
-          {summary.tally.result.threshold && (
-            <div className="mt-4 flex items-center justify-between px-2 text-xs font-bold text-[var(--color-on-surface-variant)]">
-              <span>法定當選門檻</span>
-              <span className="px-2 py-1 bg-[var(--color-surface-container-highest)] rounded-lg tabular-nums">
-                {summary.tally.result.threshold} 票
-              </span>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Candidate Breakdown */}
-      <div className="md:col-span-8">
-        <Card className="p-8 rounded-2xl border border-[var(--color-outline-variant)]/30 bg-[var(--color-surface)] elevation-1">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-black text-[var(--color-on-surface)] flex items-center gap-3">
-              <PieChart className="w-7 h-7 text-[var(--color-primary)]" />
-              詳細計票數據
-            </h2>
-            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)] font-bold text-xs border border-[var(--color-outline-variant)]/30">
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-              稽核完成
-            </div>
+        </div>
+        {typeof tally.result.threshold === 'number' && (
+          <div className="flex items-center justify-between border-t border-[var(--color-outline-variant)] px-5 py-3.5 text-[15px]">
+            <span className="text-[var(--color-on-surface-variant)]">法定當選門檻</span>
+            <span className="tabular font-semibold text-[var(--color-on-surface)]">{fmt(tally.result.threshold)} 票</span>
           </div>
+        )}
+      </Section>
 
-          {(!summary.tally.candidates || summary.tally.candidates.length === 0) ? (
-            <div className="flex flex-col items-center justify-center py-20 text-[var(--color-on-surface-variant)] opacity-40">
-              <BarChart3 className="w-16 h-16 mb-4" />
-              <p className="font-bold">尚無任何有效的計票資料</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {summary.tally.candidates
-                .sort((a, b) => b.voteCount - a.voteCount)
-                .map((candidate, index) => {
-                  const count = candidate.voteCount;
-                  const percentage = summary.totalVotes > 0 ? (count / summary.totalVotes) * 100 : 0;
+      {/* ── 各候選人得票 ───────────────────────────────────────── */}
+      <Section
+        title="各候選人得票"
+        description={`百分比以總投票數 ${fmt(summary.totalVotes)} 票為分母，已包含廢票與不合法票。`}
+        card={false}
+      >
+        {ranked.length === 0 ? (
+          <EmptyState icon={BarChart3} title="尚無有效的計票資料" />
+        ) : (
+          <ol className="list-none divide-y divide-[var(--color-outline-variant)] overflow-hidden rounded-3xl bg-[var(--color-surface-container-lowest)] p-0">
+            {ranked.map((candidate, index) => {
+              const count = candidate.voteCount;
+              const percentage = summary.totalVotes > 0 ? (count / summary.totalVotes) * 100 : 0;
+              const isWinner = winnerIds.has(candidate.id);
 
-                  const isWinner = summary.tally.result.winner?.id === candidate.id ||
-                    summary.tally.result.winners?.some(w => w.id === candidate.id);
-
-                  return (
-                    <div
-                      key={candidate.id}
+              return (
+                <li key={candidate.id} className="space-y-3 px-5 py-4">
+                  <div className="flex items-center gap-3.5">
+                    <span
+                      aria-hidden="true"
                       className={cn(
-                        "p-6 rounded-2xl border transition-all duration-500 relative group overflow-hidden",
+                        'tabular flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[15px] font-semibold',
                         isWinner
-                          ? "bg-[var(--color-primary-container)]/10 border-[var(--color-primary)] elevation-2"
-                          : "bg-[var(--color-surface-container-low)] border-transparent hover:bg-[var(--color-surface-container-high)]"
+                          ? 'bg-[var(--color-primary)] text-[var(--color-on-primary)]'
+                          : 'bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]',
                       )}
                     >
-                      {isWinner && (
-                        <div className="absolute top-0 right-0 px-4 py-1 bg-[var(--color-primary)] text-[var(--color-on-primary)] font-black text-[10px] tracking-widest uppercase rounded-bl-lg elevation-2">
-                          Winner
-                        </div>
+                      {isWinner ? <Trophy className="h-[18px] w-[18px]" /> : index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      {/* 當選不只靠顏色標示：同時有獎盃圖示與「當選」文字 */}
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="type-title-medium text-[var(--color-on-surface)]">{candidate.name}</span>
+                        {isWinner && <StatusBadge tone="info" icon={Check}>當選</StatusBadge>}
+                      </p>
+                      {candidate.bio && (
+                        <p className="mt-0.5 line-clamp-1 text-[13px] text-[var(--color-on-surface-variant)]">{candidate.bio}</p>
                       )}
-
-                      <div className="flex justify-between items-start mb-4 relative z-10">
-                        <div className="flex items-center gap-5">
-                          <div className={cn(
-                            "w-12 h-12 rounded-xl flex items-center justify-center text-lg font-black transition-all duration-500",
-                            isWinner
-                              ? "bg-[var(--color-primary)] text-[var(--color-on-primary)] elevation-3 rotate-6"
-                              : "bg-[var(--color-surface-container-highest)] text-[var(--color-on-surface-variant)]"
-                          )}>
-                            {isWinner ? <Trophy className="w-6 h-6" /> : index + 1}
-                          </div>
-                          <div>
-                            <span className={cn(
-                              "text-xl font-black block mb-1",
-                              isWinner ? "text-[var(--color-primary)]" : "text-[var(--color-on-surface)]"
-                            )}>
-                              {candidate.name}
-                            </span>
-                            <span className="text-xs font-medium text-[var(--color-on-surface-variant)] opacity-60">
-                              {candidate.bio || '候選人描述尚無'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-right flex flex-col items-end">
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-3xl font-black text-[var(--color-on-surface)] tabular-nums leading-none">
-                              {count}
-                            </span>
-                            <span className="text-sm font-bold opacity-50">票</span>
-                          </div>
-                          <span className="text-xs font-bold text-[var(--color-primary)] opacity-70 mt-1">
-                            {percentage.toFixed(1)}%
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="w-full h-4 bg-[var(--color-surface-container-highest)] rounded-full overflow-hidden border border-[var(--color-outline-variant)]/20">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all duration-1000 ease-out",
-                            isWinner ? "bg-[var(--color-primary)]" : "bg-[var(--color-secondary)] opacity-60"
-                          )}
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
                     </div>
-                  )
-                }
-                )}
-            </div>
-          )}
-        </Card>
-      </div>
+                    <div className="shrink-0 text-right">
+                      <p className="tabular text-xl font-bold leading-none text-[var(--color-on-surface)]">
+                        {fmt(count)}
+                        <span className="ml-0.5 text-[13px] font-normal text-[var(--color-on-surface-variant)]">票</span>
+                      </p>
+                      <p className="tabular mt-1 text-[13px] text-[var(--color-on-surface-variant)]">{percentage.toFixed(1)}%</p>
+                    </div>
+                  </div>
+
+                  <div
+                    role="meter"
+                    aria-label={`${candidate.name} 得票比率`}
+                    aria-valuenow={Number(percentage.toFixed(1))}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    className="h-2 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]"
+                  >
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-[width] duration-[var(--dur-page)] ease-[var(--ease-standard)]',
+                        isWinner ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-outline)]',
+                      )}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </Section>
     </div>
   );
 }

@@ -74,20 +74,70 @@ export class ElectionsService {
 
     return safeElection;
   }
+  /**
+   * 可以安全地回給客戶端的 Election 欄位。
+   *
+   * ──────────────────────────────────────────────────────────────────────────
+   * 這是本次修正中最嚴重的一個問題。
+   *
+   * 原本 findAll / findVisibleAll / findOne 都是直接回傳整個 election 資料列，
+   * 而 Election 這張表裡存著 `privateKey` —— 也就是開票時用來解密所有選票的
+   * RSA 私鑰。這三個端點又都沒有掛任何 Guard。
+   *
+   * 也就是說：任何人對 GET /api/elections 發一個請求，就能拿到每一場選舉的
+   * 解密私鑰。實測確認過，包含正在進行中的那場。
+   *
+   * 用明確的 select 白名單，而不是「取出來再 delete 掉某個欄位」——
+   * 後者只要有人日後新增敏感欄位就會再次外洩，而白名單是預設安全的。
+   * ──────────────────────────────────────────────────────────────────────────
+   */
+  private static readonly PUBLIC_ELECTION_FIELDS = {
+    id: true,
+    name: true,
+    description: true,
+    type: true,
+    config: true,
+    status: true,
+    hasDrawLottery: true,
+    isVisible: true,
+    participantsCount: true,
+    eiligibleCount: true,
+    startTime: true,
+    endTime: true,
+    createdAt: true,
+    updatedAt: true,
+    finalResult: true,
+    // publicKey 是給前端加密選票用的，必須回傳
+    publicKey: true,
+    // privateKey 永遠不回傳
+  } as const;
+
   async findAll() {
     return this.prisma.election.findMany({
+      select: ElectionsService.PUBLIC_ELECTION_FIELDS,
       orderBy: { createdAt: 'desc' },
     });
   }
+
   async findVisibleAll() {
     return this.prisma.election.findMany({
-      where: {
-        isVisible: true
-      },
+      where: { isVisible: true },
+      select: ElectionsService.PUBLIC_ELECTION_FIELDS,
       orderBy: { createdAt: 'desc' },
     });
   }
+
   async findOne(id: string) {
+    const election = await this.prisma.election.findUnique({
+      where: { id },
+      select: ElectionsService.PUBLIC_ELECTION_FIELDS,
+    });
+    if (!election) throw new NotFoundException('Election not found');
+    return election;
+  }
+
+  /** 內部使用：需要完整資料列（含 privateKey）時走這個，絕不直接回給客戶端 */
+  private async findOneInternal(id: string) {
     const election = await this.prisma.election.findUnique({ where: { id } });
     if (!election) throw new NotFoundException('Election not found');
     return election;
@@ -462,10 +512,14 @@ export class ElectionsService {
       throw new BadRequestException(`Wish have ${count}, but only ${participants.length} qulified`);
     }
 
-    // 3. Shuffle the person
+    // 3. 洗牌
+    //
+    // 原本用 Math.random()。那是可預測的偽隨機數（V8 用 xorshift128+），
+    // 觀察到足夠輸出就能反推內部狀態並預測後續結果。
+    // 這是會發出實體獎品的抽獎，改用 crypto.randomInt 的 CSPRNG。
     const shuffled = [...participants];
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = crypto.randomInt(0, i + 1);
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
 

@@ -1,11 +1,12 @@
 import { getRandomBytes } from '../../../lib/crypto';
 // @ts-ignore
-import { buildPoseidon } from 'circomlibjs';
 
 let poseidon: any;
 
 export async function getPoseidon() {
     if (!poseidon) {
+        // 動態 import：避免 2.8 MB 的 circomlibjs 被併進主 bundle
+        const { buildPoseidon } = await import('circomlibjs');
         poseidon = await buildPoseidon();
     }
     return poseidon;

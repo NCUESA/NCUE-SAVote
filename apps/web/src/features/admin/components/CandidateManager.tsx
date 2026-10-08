@@ -4,11 +4,16 @@ import { api } from '../../auth/services/auth.api';
 import { candidateApi } from '../../auth/services/candidate.api';
 import { API_ENDPOINTS } from '../../../lib/constants';
 import type { Election } from '@savote/shared-types';
-import { Card } from '../../../components/m3/Card';
 import { Button } from '../../../components/m3/Button';
 import { TextField } from '../../../components/m3/TextField';
 import { Trash2, Plus, UserCircle, Upload } from 'lucide-react';
+import { Section } from '../../../components/ui/Section';
+import { Select } from '../../../components/ui/Select';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { IconButton } from '../../../components/ui/IconButton';
 
+// 目前沒有任何頁面使用這個元件（候選人改在 CandidateManagementPage 管理），
+// 外觀仍跟上系統，避免日後被重新引用時又帶回舊的樣式。
 export function CandidateManager() {
   const queryClient = useQueryClient();
   const [selectedElectionId, setSelectedElectionId] = useState('');
@@ -17,7 +22,7 @@ export function CandidateManager() {
 
   // Fetch Elections
   const { data: elections = [], isLoading: isLoadingElections } = useQuery({
-    queryKey: ['admin', 'elections'],
+    queryKey: ['admin', 'elections', 'visible'],
     queryFn: async () => {
       const response = await api.get<Election[]>(API_ENDPOINTS.ELECTIONS.LIST);
       return response.data;
@@ -76,134 +81,120 @@ export function CandidateManager() {
   };
 
   return (
-    <Card className="p-6">
-      <h2 className="text-xl font-bold mb-6 text-[var(--color-on-surface)]">
-        候選人管理
-      </h2>
+    <div className="space-y-6">
+      <Section title="候選人管理">
+        <div className="space-y-5">
+          {isLoadingElections ? (
+            <div className="skeleton h-12 rounded-xl" />
+          ) : (
+            <Select
+              label="選舉"
+              value={selectedElectionId}
+              onChange={(e) => setSelectedElectionId(e.target.value)}
+            >
+              {elections.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </Select>
+          )}
 
-      {/* Election Selector */}
-      <div className="mb-6">
-        <label className="block mb-2 text-sm font-medium text-[var(--color-on-surface-variant)]">
-            選擇選舉
-        </label>
-        {isLoadingElections ? (
-          <div className="h-10 bg-[var(--color-surface-variant)] rounded animate-pulse" />
-        ) : (
-          <select
-            value={selectedElectionId}
-            onChange={(e) => setSelectedElectionId(e.target.value)}
-            className="w-full rounded-lg bg-[var(--color-surface-variant)] border-0 text-[var(--color-on-surface)] px-4 py-3 focus:ring-2 focus:ring-[var(--color-primary)] transition-all"
-          >
-            {elections.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        )}
-      </div>
+          <form onSubmit={handleCreate} className="space-y-4 rounded-2xl bg-[var(--color-surface-container)] p-4">
+            <h3 className="type-title-small text-[var(--color-on-surface)]">新增候選人</h3>
+            <TextField
+              label="姓名"
+              value={newCandidate.name}
+              onChange={e => setNewCandidate({ ...newCandidate, name: e.target.value })}
+            />
+            <TextField
+              label="簡介"
+              value={newCandidate.bio}
+              onChange={e => setNewCandidate({ ...newCandidate, bio: e.target.value })}
+            />
 
-      {/* Add Candidate Form */}
-      <form onSubmit={handleCreate} className="mb-8 p-4 bg-[var(--color-surface-variant)]/30 rounded-lg border border-[var(--color-outline-variant)]">
-        <h3 className="text-lg font-medium mb-4 text-[var(--color-on-surface)]">新增候選人</h3>
-        <div className="space-y-4">
-          <TextField
-            label="姓名"
-            value={newCandidate.name}
-            onChange={e => setNewCandidate({ ...newCandidate, name: e.target.value })}
-            className="bg-[var(--color-surface)]"
-          />
-          <TextField
-             label="簡介"
-             value={newCandidate.bio}
-             onChange={e => setNewCandidate({ ...newCandidate, bio: e.target.value })}
-             className="bg-[var(--color-surface)]"
-          />
-          
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-[var(--color-on-surface-variant)]">
-                照片
-            </label>
-            <div className="flex items-center gap-4">
-                <input 
-                    type="file" 
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/*"
-                    className="hidden"
-                    id="photo-upload"
+            <div className="space-y-1.5">
+              {/* file input 是隱藏的、由下方按鈕代觸發，
+                  所以這裡用 <span> 當區塊標題，真正的可及名稱放在按鈕上 */}
+              <span className="block px-1 text-sm font-semibold text-[var(--color-on-surface)]">照片</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden"
+                  id="photo-upload"
                 />
-                <Button 
-                    type="button" 
-                    variant="outlined" 
-                    onClick={() => fileInputRef.current?.click()}
-                    icon={<Upload className="w-4 h-4" />}
+                <Button
+                  variant="outlined"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  icon={<Upload className="h-4 w-4" />}
                 >
-                    {newCandidate.photoFile ? newCandidate.photoFile.name : '上傳照片'}
+                  {newCandidate.photoFile ? newCandidate.photoFile.name : '上傳照片'}
                 </Button>
                 {newCandidate.photoFile && (
-                    <Button 
-                        type="button" 
-                        variant="text" 
-                        color="error"
-                        onClick={() => {
-                            setNewCandidate({ ...newCandidate, photoFile: null });
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                        }}
-                    >
-                        清除
-                    </Button>
+                  <Button
+                    variant="text"
+                    color="error"
+                    size="sm"
+                    onClick={() => {
+                      setNewCandidate({ ...newCandidate, photoFile: null });
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                  >
+                    清除
+                  </Button>
                 )}
+              </div>
             </div>
-          </div>
 
-          <Button 
-            type="submit" 
-            disabled={createMutation.isPending || !selectedElectionId}
-            loading={createMutation.isPending}
-            icon={<Plus className="w-4 h-4" />}
-          >
-            新增
-          </Button>
+            <Button
+              type="submit"
+              disabled={createMutation.isPending || !selectedElectionId}
+              loading={createMutation.isPending}
+              icon={<Plus className="h-4 w-4" />}
+            >
+              新增
+            </Button>
+          </form>
         </div>
-      </form>
+      </Section>
 
-      {/* Candidates List */}
-      <div>
-        <h3 className="text-lg font-medium mb-4 text-[var(--color-on-surface)]">候選人列表</h3>
+      <Section title="候選人" card={false}>
         {isLoadingCandidates ? (
-          <div className="space-y-3">
-              <div className="h-16 bg-[var(--color-surface-variant)] rounded animate-pulse" />
-              <div className="h-16 bg-[var(--color-surface-variant)] rounded animate-pulse" />
+          <div className="space-y-px overflow-hidden rounded-3xl">
+            {[1, 2].map((i) => <div key={i} className="skeleton h-[68px] rounded-none" />)}
           </div>
         ) : candidates.length === 0 ? (
-          <p className="text-[var(--color-on-surface-variant)]">尚無候選人。</p>
+          <EmptyState icon={UserCircle} title="尚無候選人" />
         ) : (
-          <div className="grid gap-3">
+          <ul className="list-none divide-y divide-[var(--color-outline-variant)] overflow-hidden rounded-3xl bg-[var(--color-surface-container-lowest)] p-0">
             {candidates.map(candidate => (
-              <div key={candidate.id} className="flex justify-between items-center p-4 border border-[var(--color-outline-variant)] rounded-lg bg-[var(--color-surface)]">
-                <div className="flex items-center gap-4">
-                  {candidate.photoUrl ? (
-                    <img src={candidate.photoUrl} alt={candidate.name} className="w-10 h-10 rounded-full object-cover bg-gray-200" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-[var(--color-primary-container)] flex items-center justify-center text-[var(--color-on-primary-container)]">
-                        <UserCircle className="w-6 h-6" />
-                    </div>
+              <li key={candidate.id} className="flex items-center gap-4 px-4 py-3 md:px-5">
+                {candidate.photoUrl ? (
+                  <img src={candidate.photoUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl bg-[var(--color-surface-container)] object-cover" />
+                ) : (
+                  <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)]">
+                    <UserCircle className="h-6 w-6" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="type-title-small truncate text-[var(--color-on-surface)]">{candidate.name}</p>
+                  {candidate.bio && (
+                    <p className="truncate text-[13px] text-[var(--color-on-surface-variant)]">{candidate.bio}</p>
                   )}
-                  <div>
-                    <div className="font-bold text-[var(--color-on-surface)]">{candidate.name}</div>
-                    <div className="text-sm text-[var(--color-on-surface-variant)] line-clamp-1">{candidate.bio}</div>
-                  </div>
                 </div>
-                <Button 
-                    variant="text" 
-                    color="error"
-                    onClick={() => deleteMutation.mutate(candidate.id)} 
-                    disabled={deleteMutation.isPending}
-                    icon={<Trash2 className="w-4 h-4" />}
-                    className="min-w-0 px-2"
-                />
-              </div>
+                <IconButton
+                  tone="error"
+                  aria-label={`刪除候選人「${candidate.name}」`}
+                  onClick={() => deleteMutation.mutate(candidate.id)}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 aria-hidden="true" />
+                </IconButton>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </div>
-    </Card>
+      </Section>
+    </div>
   );
 }
